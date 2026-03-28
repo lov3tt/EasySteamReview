@@ -82,13 +82,10 @@ The gaming analytics market is highly competitive, with various tools and platfo
    - **API Framework:** FastAPI (for building the dashboard API)
    - **NLP Library:** NLTK
    - **Visualization Libraries:** Matplotlib, Seaborn, or Plotly.
-   - **Database:** SQLite or PostgreSQL for storing processed data.
+   - **Database:** Sqlalchemy
 
 2. **Implementation Steps:**
-   3. Set up API integrations with Steam User Reviews, SteamDB, and SteamSpy APIs.
-   4. Develop a keyword extraction module using NLP techniques.
-   5. Build the dashboard interface using Python visualization libraries.
-   6. Test the tool with sample data to ensure accuracy and performance.
+   - Run START_EasySteamReview.bat and it'll automatically set up the venv and intall all the Library needed to run in the Requirements.txt and launch locally on your browser.
 
 ---
 
