@@ -341,30 +341,35 @@ nav{position:sticky;top:0;z-index:200;background:rgba(8,12,20,.9);
   <div class="pages" id="pages-flagged"></div>
 </div>
 
-<!-- TAB: Analytics -->
-<div class="tab-pane" id="pane-analytics">
-  <div id="analyticsContent">
-    <div class="center-msg">
-      <div class="spinner"></div>
-      <span style="color:var(--muted);font-size:.85rem;">Waiting for data...</span>
+  <!-- TAB: Analytics -->
+  <div class="tab-pane" id="pane-analytics">
+    <div id="analyticsContent">
+      <div class="center-msg">
+        <div class="spinner"></div>
+        <span style="color:var(--muted);font-size:.85rem;">Waiting for data...</span>
+      </div>
+    </div>
+
+    <!-- New section for NLP explanation -->
+<div class="analytics-note" style="font-size: 1rem; background-color: rgba(0, 200, 240, 0.08); padding: 10px; border-radius: 5px;">
+  NLP sentiment AI is a subfield of artificial intelligence that uses natural language processing (NLP) to identify and classify emotions—positive, negative, or neutral—within text, often called opinion mining. It transforms unstructured text into structured insights, helping businesses analyze customer feedback, social media, and surveys.
+</div>
+  </div>
+
+  <!-- TAB: Details -->
+  <div class="tab-pane" id="pane-details">
+    <div id="detailsContent">
+      <div class="center-msg">
+        <div class="spinner"></div>
+        <span style="color:var(--muted);font-size:.85rem;">Loading game details...</span>
+      </div>
     </div>
   </div>
-</div>
 
-<!-- TAB: Details -->
-<div class="tab-pane" id="pane-details">
-  <div id="detailsContent">
-    <div class="center-msg">
-      <div class="spinner"></div>
-      <span style="color:var(--muted);font-size:.85rem;">Loading game details...</span>
-    </div>
-  </div>
-</div>
+  <div id="toast"></div>
 
-<div id="toast"></div>
-
-<script>
-// ═══════════════════════════════════════════════════════════════════════════
+  <script>
+// ═══════════════════
 // CONFIG
 // ═══════════════════════════════════════════════════════════════════════════
 const APP_ID = {{ (app_id or '') | tojson }};
