@@ -22,27 +22,23 @@ from fastapi.middleware.cors import CORSMiddleware
 app_mode = os.getenv("APP_MODE", "local")
 load_dotenv(f".env.{app_mode}")
 
-app = FastAPI()
+# --- Lifespan Management ---
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+app = FastAPI(title="EasySteamReview Analytics", lifespan=lifespan)
 
 # Configure CORS so your Proxy or Local Frontend can talk to the API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.getenv("CORS_ORIGIN", "*")], 
+    allow_origins=[os.getenv("CORS_ORIGIN", "*")],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 # ---End Cor Proxy---
-
-# --- Lifespan Management ---
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Runs on startup
-    init_db()
-    yield
-    # Runs on shutdown (add cleanup here if needed)
-
-app = FastAPI(title="EasySteamReview Analytics", lifespan=lifespan)
 
 BASE = Path(__file__).parent
 templates = Jinja2Templates(directory=str(BASE / "templates"))
@@ -200,14 +196,65 @@ async def get_analytics(app_id: str, db: Session = Depends(get_db)):
         return {"error": "no_data", "game": _gd(game) if game else {}}
 
     rev_list = [_rd(r) for r in reviews]
+    gd = dict(_gd(game)) if game else {}
+
+    if gd:
+        changed = await eng.maybe_refresh_lifetime_from_steamspy(app_id, gd, len(reviews))
+        if changed and game:
+            game.total_reviews = gd["total_reviews"]
+            game.positive_reviews = gd["positive_reviews"]
+            game.negative_reviews = gd["negative_reviews"]
+            game.rating = gd["rating"]
+            db.commit()
+
+    lt_total = int(gd.get("total_reviews") or 0)
+    lt_pos = int(gd.get("positive_reviews") or 0)
+    lt_neg = int(gd.get("negative_reviews") or 0)
+    if lt_total <= 0 and lt_pos + lt_neg > 0:
+        lt_total = lt_pos + lt_neg
+
+    life_rating = float(gd.get("rating") or 0)
+    overall_pos_pct = overall_neg_pct = None
+    if lt_total > 0:
+        overall_pos_pct = round(lt_pos / lt_total * 100, 1)
+        overall_neg_pct = round(lt_neg / lt_total * 100, 1)
+        if life_rating <= 0:
+            life_rating = overall_pos_pct
+    elif life_rating > 0:
+        overall_pos_pct = round(life_rating, 1)
+        overall_neg_pct = round(100 - life_rating, 1)
+
+    rev_30d = eng.filter_reviews_by_recent_days(rev_list, 30)
+
     pos = sum(1 for r in reviews if r.is_positive)
     neg = len(reviews) - pos
     flagged = sum(1 for r in reviews if r.trigger_keywords and r.trigger_keywords not in ([], "[]", ""))
-    
+
     avg_sent = round(sum(float(r.sentiment_score or 0) for r in reviews) / len(reviews), 4)
     pos_pct = round(pos / len(reviews) * 100, 1)
 
+    sample_rating = pos_pct
+    rating_delta = (
+        round(sample_rating - life_rating, 1) if (life_rating and life_rating > 0) else None
+    )
+
     return {
+        "meta": {
+            "window_days": 30,
+            "max_reviews": 800,
+            "reviews_used": len(reviews),
+            "chart_window_days": 30,
+            "chart_reviews_used": len(rev_30d),
+            "description": "Charts use only reviews from the last 30 calendar days (UTC). The dashboard sample is up to 800 recent English reviews; Steam store cards use all-time totals.",
+        },
+        "lifetime": {
+            "total_reviews": lt_total,
+            "positive_reviews": lt_pos,
+            "negative_reviews": lt_neg,
+            "rating_pct": round(life_rating, 1) if life_rating else 0.0,
+            "overall_positive_pct": overall_pos_pct,
+            "overall_negative_pct": overall_neg_pct,
+        },
         "summary": {
             "total": len(reviews),
             "positive": pos,
@@ -216,13 +263,19 @@ async def get_analytics(app_id: str, db: Session = Depends(get_db)):
             "avg_sentiment": avg_sent,
             "positive_pct": pos_pct,
             "negative_pct": round(100 - pos_pct, 1),
+            "rating_pct": round(sample_rating, 1),
         },
-        "sentiment_trend": eng.get_sentiment_trend(rev_list),
-        "hours_distribution": eng.get_hours_distribution(rev_list),
-        "keyword_stats": eng.get_keyword_stats(rev_list),
-        "heatmap": eng.get_heatmap_data(rev_list),
-        "scatter": eng.get_scatter_data(rev_list),
-        "game": _gd(game) if game else {},
+        "comparison": {
+            "sample_rating_pct": round(sample_rating, 1),
+            "lifetime_rating_pct": round(life_rating, 1) if life_rating else None,
+            "rating_delta_pct": rating_delta,
+        },
+        "sentiment_trend": eng.get_sentiment_trend(rev_30d, 30),
+        "hours_distribution": eng.get_hours_distribution(rev_30d),
+        "keyword_stats": eng.get_keyword_stats(rev_30d),
+        "heatmap": eng.get_heatmap_data(rev_30d, 30),
+        "scatter": eng.get_scatter_data(rev_30d),
+        "game": gd,
     }
 
 # ── Helpers ────────────────────────────────────────────────────────────────────

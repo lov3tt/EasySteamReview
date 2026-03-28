@@ -210,6 +210,8 @@ async def fetch_reviews(app_id: str, client: httpx.AsyncClient, days: int = 30) 
         batch = data["reviews"]
         new_cursor = data.get("cursor", "*")
         for r in batch:
+            if len(reviews) >= 800:
+                break
             ts = datetime.utcfromtimestamp(r.get("timestamp_created", 0))
             if ts < cutoff:
                 continue
@@ -223,6 +225,8 @@ async def fetch_reviews(app_id: str, client: httpx.AsyncClient, days: int = 30) 
                 "hours_played": round(playtime / 60, 2),
                 "votes_up":     int(r.get("votes_up", 0)),
             })
+        if len(reviews) >= 800:
+            break
         if new_cursor == cursor or new_cursor == "*" or len(batch) < 100:
             break
         cursor = new_cursor
@@ -245,6 +249,57 @@ def extract_trigger_keywords(text: str) -> list:
     tl = text.lower()
     return [kw for kw in TRIGGER_KEYWORDS if kw in tl]
 
+# ── Review timestamp / 30-day window (for charts) ─────────────────────────────
+
+def _review_ts_naive_utc(r: dict) -> datetime | None:
+    ts = r.get("timestamp")
+    if isinstance(ts, datetime):
+        return ts
+    if isinstance(ts, str) and len(ts) >= 10:
+        s = ts.replace("Z", "").strip()
+        if " " in s and "T" not in s:
+            s = s.replace(" ", "T", 1)
+        try:
+            return datetime.fromisoformat(s[:19])
+        except ValueError:
+            return None
+    return None
+
+
+def filter_reviews_by_recent_days(reviews: list, days: int = 30) -> list:
+    """Keep only reviews with timestamp within the last `days` (UTC, rolling window)."""
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    out = []
+    for r in reviews:
+        dt = _review_ts_naive_utc(r)
+        if dt is not None and dt >= cutoff:
+            out.append(r)
+    return out
+
+
+async def maybe_refresh_lifetime_from_steamspy(app_id: str, gd: dict, sample_count: int) -> bool:
+    """
+    If stored lifetime totals look missing or equal to the in-app sample (common ETL bug),
+    replace with SteamSpy all-time totals. Returns True if gd was updated.
+    """
+    lt = int(gd.get("total_reviews") or 0)
+    needs = (lt == 0) or (sample_count > 0 and lt == sample_count)
+    if not needs:
+        return False
+    async with httpx.AsyncClient() as client:
+        spy = await _steamspy_detail(app_id, client)
+    if not spy:
+        return False
+    st = int(spy.get("total_reviews") or 0)
+    if lt > 0 and st <= lt:
+        return False
+    gd["total_reviews"] = int(spy.get("total_reviews") or 0)
+    gd["positive_reviews"] = int(spy.get("positive_reviews") or 0)
+    gd["negative_reviews"] = int(spy.get("negative_reviews") or 0)
+    gd["rating"] = float(spy.get("rating") or 0)
+    return True
+
+
 # ── Analytics builders ────────────────────────────────────────────────────────
 
 def get_keyword_stats(reviews: list) -> dict:
@@ -255,14 +310,21 @@ def get_keyword_stats(reviews: list) -> dict:
     return dict(c.most_common(15))
 
 def get_sentiment_trend(reviews: list, days: int = 30) -> list:
-    daily = defaultdict(lambda: {"positive": 0, "negative": 0, "scores": []})
+    """One row per calendar day for the last `days` days (UTC), even if a day has no reviews."""
+    end = datetime.utcnow().date()
+    start = end - timedelta(days=days - 1)
+    day_list: list[str] = []
+    d = start
+    while d <= end:
+        day_list.append(d.isoformat())
+        d += timedelta(days=1)
+    daily = {day: {"positive": 0, "negative": 0, "scores": []} for day in day_list}
     for r in reviews:
-        ts = r.get("timestamp")
-        if isinstance(ts, str):
-            day = ts[:10]
-        elif isinstance(ts, datetime):
-            day = ts.strftime("%Y-%m-%d")
-        else:
+        dt = _review_ts_naive_utc(r)
+        if not dt:
+            continue
+        day = dt.date().isoformat()
+        if day not in daily:
             continue
         daily[day]["scores"].append(float(r.get("sentiment_score") or 0))
         if r.get("is_positive"):
@@ -270,7 +332,7 @@ def get_sentiment_trend(reviews: list, days: int = 30) -> list:
         else:
             daily[day]["negative"] += 1
     result = []
-    for day in sorted(daily.keys())[-days:]:
+    for day in day_list:
         sc = daily[day]["scores"]
         result.append({
             "date":          day,
@@ -299,7 +361,7 @@ def get_hours_distribution(reviews: list) -> dict:
             neg[b] += 1
     return {"labels": order, "positive": [pos[k] for k in order], "negative": [neg[k] for k in order]}
 
-def get_heatmap_data(reviews: list) -> dict:
+def get_heatmap_data(reviews: list, days: int = 30) -> dict:
     hour_labels = ["0-1h", "1-10h", "10-50h", "50-200h", "200h+"]
     def bkt(h):
         h = float(h or 0)
@@ -308,29 +370,21 @@ def get_heatmap_data(reviews: list) -> dict:
         if h < 50:  return 2
         if h < 200: return 3
         return 4
-    # collect all dates
-    all_days = []
-    for r in reviews:
-        ts = r.get("timestamp")
-        if isinstance(ts, str):
-            day = ts[:10]
-        elif isinstance(ts, datetime):
-            day = ts.strftime("%Y-%m-%d")
-        else:
-            continue
-        all_days.append(day)
-    days_set = sorted(set(all_days))[-14:]
+    end = datetime.utcnow().date()
+    start = end - timedelta(days=days - 1)
+    days_set = []
+    d = start
+    while d <= end:
+        days_set.append(d.isoformat())
+        d += timedelta(days=1)
     if not days_set:
         return {"x": [], "y": hour_labels, "z": [[] for _ in range(5)]}
-    grid = {d: [0]*5 for d in days_set}
+    grid = {day: [0] * 5 for day in days_set}
     for r in reviews:
-        ts = r.get("timestamp")
-        if isinstance(ts, str):
-            day = ts[:10]
-        elif isinstance(ts, datetime):
-            day = ts.strftime("%Y-%m-%d")
-        else:
+        dt = _review_ts_naive_utc(r)
+        if not dt:
             continue
+        day = dt.date().isoformat()
         if day in grid:
             grid[day][bkt(r.get("hours_played", 0))] += 1
     return {
@@ -358,6 +412,18 @@ async def run_etl(app_id: str, db) -> dict:
         game_data   = await fetch_game_details(app_id, client)
         if not game_data:
             return {"error": "Game not found"}
+        # Store page keeps review totals at 0 often — fill lifetime stats from SteamSpy
+        tr = int(game_data.get("total_reviews") or 0)
+        if tr == 0 and int(game_data.get("positive_reviews") or 0) + int(game_data.get("negative_reviews") or 0) == 0:
+            spy = await _steamspy_detail(app_id, client)
+            if spy:
+                game_data["total_reviews"] = int(spy.get("total_reviews") or 0)
+                game_data["positive_reviews"] = int(spy.get("positive_reviews") or 0)
+                game_data["negative_reviews"] = int(spy.get("negative_reviews") or 0)
+                game_data["rating"] = float(spy.get("rating") or 0)
+                for fld in ("developer", "publisher", "genre"):
+                    if spy.get(fld) and not game_data.get(fld):
+                        game_data[fld] = spy[fld]
         raw_reviews = await fetch_reviews(app_id, client)
 
     pos = neg = flagged = 0
@@ -372,11 +438,15 @@ async def run_etl(app_id: str, db) -> dict:
         if keywords:         flagged += 1
         processed.append(r)
 
-    total = len(processed)
-    game_data["total_reviews"]    = total
-    game_data["positive_reviews"] = pos
-    game_data["negative_reviews"] = neg
-    game_data["rating"]           = round(pos / total * 100, 1) if total else 0.0
+    # Keep Steam all-time review totals on the Game row; sample analytics come from Review rows
+    lt_total = int(game_data.get("total_reviews") or 0)
+    lt_pos = int(game_data.get("positive_reviews") or 0)
+    lt_neg = int(game_data.get("negative_reviews") or 0)
+    if lt_total <= 0 and lt_pos + lt_neg > 0:
+        lt_total = lt_pos + lt_neg
+        game_data["total_reviews"] = lt_total
+    if (game_data.get("rating") or 0) == 0 and lt_total > 0:
+        game_data["rating"] = round(lt_pos / lt_total * 100, 1)
 
     # Upsert game
     existing = db.query(Game).filter(Game.app_id == str(app_id)).first()
@@ -403,4 +473,11 @@ async def run_etl(app_id: str, db) -> dict:
             votes_up        = r["votes_up"],
         ))
     db.commit()
-    return {"app_id": app_id, "total": total, "positive": pos, "negative": neg, "flagged": flagged}
+    sample_n = len(processed)
+    return {
+        "app_id": app_id,
+        "total": sample_n,
+        "positive": pos,
+        "negative": neg,
+        "flagged": flagged,
+    }
