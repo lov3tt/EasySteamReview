@@ -100,7 +100,9 @@ The gaming analytics market is highly competitive, with various tools and platfo
 ---
 ### Q & A
 - **Q**: Why did I choose a NLP sentiment model over just thumb up and down?
-- **A**" NLP sentiment analysis is superior to thumbs up/down because it extracts deep context, nuances, and specific emotions from unstructured text, whereas binary feedback only shows if a user is happy, not why. NLP uncovers granular insights like “too slow” or “great value,” allowing for automated, actionable, and scalable customer experience improvements, unlike limited binary clicks. Which help show greater depth behind the users review at the time.
+- **A**" NLP sentiment analysis is superior to thumbs up/down because it extracts deep context, nuances, and specific emotions from unstructured text, whereas binary feedback only shows if a user is happy, not why. NLP uncovers granular insights like “too slow” or “great value,” allowing for automated, actionable, and scalable customer experience improvements, unlike limited binary clicks. Which help show greater depth behind the users review at the time instead of only just seeing a postive or negative report.
+  <img width="859" height="511" alt="Screenshot 2026-03-28 123420" src="https://github.com/user-attachments/assets/543104b4-37e3-4011-846b-d0d1069a9f74" />
+
 - **Q**: Why did I choose a sample size of 800 and a limiting factor of 30 days for my project?
 - **A**: A sample size of 800 is considered effective for a 30-day period because it provides a balance between high statistical precision and practical feasibility. Specifically, it offers a small margin of error (approximately +/- 3.5% ), high statistical power to detect meaningful changes over a month, and enough data to perform sub-group analysis (such as comparing weekly trends) without the high costs of larger samples.
 
