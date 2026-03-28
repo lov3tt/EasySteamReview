@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>EasySteamReview — Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+<style>
+:root{
+  --bg:#080c14;--surface:#0f1923;--surface2:#162030;--surface3:#1c2a3e;
+  --border:#1e3558;--accent:#00c8f0;--accent2:#7c3aed;
+  --green:#10b981;--red:#ef4444;--yellow:#f59e0b;--orange:#f97316;
+  --text:#dde6f0;--muted:#5a7494;--muted2:#8ba3be;
+}
+.light{
+  --bg:#eef2f9;--surface:#ffffff;--surface2:#f0f4fb;--surface3:#e4ecf8;
+  --border:#c8d8ee;--accent:#0080cc;--accent2:#6d28d9;
+  --green:#059669;--red:#dc2626;--yellow:#d97706;
+  --text:#1a2d45;--muted:#7090b0;--muted2:#4a6a90;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+
+/* NAV */
+nav{position:sticky;top:0;z-index:200;background:rgba(8,12,20,.9);
+  backdrop-filter:blur(16px);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 1.25rem;height:58px;gap:10px;}
+.logo{font-family:'Rajdhani',sans-serif;font-size:1.25rem;font-weight:700;
+  background:linear-gradient(130deg,var(--accent),var(--accent2));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  text-decoration:none;white-space:nowrap;}
+.nav-game{font-size:.82rem;color:var(--muted2);overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;max-width:240px;flex:1;}
+.nav-actions{display:flex;gap:7px;flex-shrink:0;}
+.btn{padding:5px 13px;border-radius:6px;cursor:pointer;font-size:.78rem;
+  font-weight:600;transition:all .2s;border:1px solid;text-decoration:none;
+  display:inline-flex;align-items:center;gap:5px;}
+.btn-accent{background:var(--accent);border-color:var(--accent);color:#000;}
+.btn-accent:hover{opacity:.82;}
+.btn-accent:disabled{opacity:.5;cursor:not-allowed;}
+.btn-outline{background:transparent;border-color:var(--border);color:var(--muted2);}
+.btn-outline:hover{border-color:var(--accent);color:var(--accent);}
+
+/* ETL STATUS BAR */
+#etlBar{padding:10px 1.25rem;font-size:.82rem;display:none;
+  align-items:center;gap:10px;border-bottom:1px solid var(--border);}
+#etlBar.running{display:flex;background:rgba(0,200,240,.06);}
+#etlBar.done{display:flex;background:rgba(16,185,129,.06);}
+#etlBar.err{display:flex;background:rgba(239,68,68,.06);}
+.mini-spin{width:16px;height:16px;border:2px solid var(--border);
+  border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* GAME HEADER */
+.game-header{background:var(--surface);border-bottom:1px solid var(--border);
+  padding:1rem 1.25rem;display:flex;gap:1rem;align-items:flex-start;}
+.game-thumb{width:150px;height:84px;object-fit:cover;border-radius:7px;
+  flex-shrink:0;border:1px solid var(--border);background:var(--surface2);}
+.game-title{font-family:'Rajdhani',sans-serif;font-size:1.55rem;font-weight:700;line-height:1.1;}
+.game-sub{font-size:.78rem;color:var(--muted2);margin-top:3px;}
+.data-badge{display:inline-flex;align-items:center;gap:5px;
+  background:rgba(0,200,240,.1);border:1px solid rgba(0,200,240,.28);
+  border-radius:5px;padding:3px 9px;font-family:'Share Tech Mono',monospace;
+  font-size:.65rem;color:var(--accent);margin-top:6px;}
+
+/* STAT CARDS */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;
+  padding:.9rem 1.25rem;background:var(--surface);border-bottom:1px solid var(--border);}
+.stat-card{background:var(--surface2);border:1px solid var(--border);
+  border-radius:9px;padding:11px 14px;text-align:center;}
+.stat-val{font-family:'Rajdhani',sans-serif;font-size:1.75rem;font-weight:700;line-height:1;}
+.stat-lbl{font-size:.67rem;color:var(--muted);margin-top:3px;
+  text-transform:uppercase;letter-spacing:.04em;}
+.c-accent{color:var(--accent);}
+.c-green{color:var(--green);}
+.c-red{color:var(--red);}
+.c-yellow{color:var(--yellow);}
+
+/* TABS */
+.tabs-bar{background:var(--surface);border-bottom:1px solid var(--border);
+  display:flex;padding:0 1.25rem;overflow-x:auto;gap:0;}
+.tab{padding:11px 16px;cursor:pointer;font-size:.83rem;font-weight:500;
+  color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap;
+  transition:color .18s,border-color .18s;}
+.tab:hover{color:var(--text);}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.tab-pane{display:none;padding:1.25rem;}
+.tab-pane.active{display:block;}
+
+/* REVIEWS */
+.sort-row{display:flex;gap:7px;margin-bottom:1rem;align-items:center;flex-wrap:wrap;}
+.sort-row span{font-size:.75rem;color:var(--muted);}
+.sort-btn{background:var(--surface);border:1px solid var(--border);color:var(--muted);
+  padding:4px 12px;border-radius:14px;cursor:pointer;font-size:.76rem;transition:all .2s;}
+.sort-btn.active,.sort-btn:hover{border-color:var(--accent);color:var(--accent);}
+
+.rev-card{background:var(--surface);border:1px solid var(--border);
+  border-radius:9px;padding:12px 14px;margin-bottom:9px;border-left:3px solid;}
+.rev-card.pos{border-left-color:var(--green);}
+.rev-card.neg{border-left-color:var(--red);}
+.rev-card.flag{border-left-color:var(--yellow);}
+.rev-text{font-size:.85rem;line-height:1.65;color:var(--text);}
+.rev-meta{display:flex;gap:14px;margin-top:7px;font-size:.7rem;color:var(--muted2);flex-wrap:wrap;}
+.kw-badge{display:inline-block;padding:2px 8px;border-radius:9px;font-size:.67rem;
+  font-weight:700;margin:3px 3px 0 0;border:1px solid;}
+.sent-chip{display:inline-flex;align-items:center;gap:4px;font-size:.7rem;}
+.sent-bar{display:inline-block;width:50px;height:3px;background:var(--surface3);
+  border-radius:2px;position:relative;overflow:hidden;}
+.sent-fill{position:absolute;top:0;bottom:0;border-radius:2px;}
+
+.pages{display:flex;gap:5px;justify-content:center;margin-top:1rem;flex-wrap:wrap;}
+.pg-btn{background:var(--surface);border:1px solid var(--border);color:var(--muted2);
+  padding:4px 11px;border-radius:5px;cursor:pointer;font-size:.78rem;transition:all .2s;}
+.pg-btn:hover,.pg-btn.active{border-color:var(--accent);color:var(--accent);}
+
+/* CHARTS */
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.chart-box{background:var(--surface);border:1px solid var(--border);
+  border-radius:11px;padding:1rem;}
+.chart-box.full{grid-column:1/-1;}
+.chart-title{font-family:'Rajdhani',sans-serif;font-size:1.05rem;font-weight:700;margin-bottom:3px;}
+.chart-sub{font-size:.7rem;color:var(--muted);margin-bottom:10px;}
+.chart-wrap{width:100%;min-height:250px;}
+
+/* KW BARS */
+.kw-bar-row{display:flex;align-items:center;gap:9px;padding:6px 0;
+  border-bottom:1px solid var(--border);}
+.kw-bar-row:last-child{border:none;}
+.kw-bar-label{font-size:.78rem;width:110px;flex-shrink:0;}
+.kw-bar-track{flex:1;height:7px;background:var(--surface2);border-radius:4px;overflow:hidden;}
+.kw-bar-fill{height:100%;border-radius:4px;transition:width .5s;}
+.kw-bar-count{font-family:'Share Tech Mono',monospace;font-size:.72rem;
+  color:var(--muted2);width:28px;text-align:right;}
+
+/* DETAILS */
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.detail-box{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:1.1rem;}
+.detail-box h3{font-family:'Rajdhani',sans-serif;font-size:1rem;font-weight:700;
+  color:var(--accent);margin-bottom:10px;padding-bottom:7px;border-bottom:1px solid var(--border);}
+.drow{display:flex;justify-content:space-between;padding:5px 0;
+  border-bottom:1px solid var(--border);font-size:.81rem;gap:8px;}
+.drow:last-child{border:none;}
+.drow .lbl{color:var(--muted2);flex-shrink:0;}
+.drow .val{font-weight:500;text-align:right;word-break:break-word;}
+.tag-cloud{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
+.tag{padding:3px 10px;border-radius:11px;font-size:.7rem;font-weight:500;
+  background:rgba(0,200,240,.08);color:var(--accent);border:1px solid rgba(0,200,240,.2);}
+.desc-text{font-size:.82rem;line-height:1.7;color:var(--muted2);}
+
+/* LOADING/EMPTY */
+.center-msg{display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:10px;padding:3rem;text-align:center;}
+.spinner{width:36px;height:36px;border:3px solid var(--border);
+  border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;}
+.empty-icon{font-size:2.5rem;}
+
+/* TOAST */
+#toast{position:fixed;bottom:20px;right:20px;padding:11px 17px;
+  background:var(--surface);border:1px solid var(--green);border-radius:8px;
+  color:var(--text);font-size:.83rem;z-index:9999;
+  transform:translateY(60px);opacity:0;transition:all .3s;max-width:310px;}
+#toast.show{transform:translateY(0);opacity:1;}
+#toast.err{border-color:var(--red);}
+
+@media(max-width:760px){
+  .stats-row{grid-template-columns:repeat(2,1fr);}
+  .chart-grid{grid-template-columns:1fr;}
+  .chart-box.full{grid-column:1;}
+  .detail-grid{grid-template-columns:1fr;}
+  .game-thumb{width:110px;height:62px;}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="logo">EasySteamReview</a>
+  <span class="nav-game" id="navName">Loading...</span>
+  <div class="nav-actions">
+    <button class="btn btn-outline" onclick="toggleTheme()">☀</button>
+    <button class="btn btn-accent" id="refreshBtn" onclick="manualRefresh()">↻ Refresh</button>
+    <a href="/" class="btn btn-outline">← Home</a>
+  </div>
+</nav>
+
+<!-- ETL Status Bar -->
+<div id="etlBar">
+  <div class="mini-spin" id="etlSpinner"></div>
+  <span id="etlMsg">Fetching and analyzing reviews…</span>
+</div>
+
+<!-- Game Header -->
+<div class="game-header">
+  <img class="game-thumb" id="gameThumb" src="" alt=""
+    onerror="this.style.display='none'"/>
+  <div style="flex:1;min-width:0;">
+    <div class="game-title" id="gameTitle">Loading...</div>
+    <div class="game-sub" id="gameSub"></div>
+    <div class="data-badge">📊 LAST 30 DAYS · LIVE ANALYSIS</div>
+  </div>
+  <div style="flex-shrink:0;display:flex;flex-direction:column;gap:6px;">
+    <a id="steamLink" href="#" target="_blank" class="btn btn-outline" style="font-size:.72rem;">
+      🔗 Steam Store
+    </a>
+  </div>
+</div>
+
+<!-- Stats -->
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="stat-val c-accent" id="sTotal">—</div>
+    <div class="stat-lbl">Total Reviews</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-val c-green" id="sPos">—</div>
+    <div class="stat-lbl">Positive %</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-val c-red" id="sNeg">—</div>
+    <div class="stat-lbl">Negative %</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-val c-yellow" id="sFlag">—</div>
+    <div class="stat-lbl">Flagged Cases</div>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs-bar">
+  <div class="tab active" onclick="switchTab('positive',this)">👍 Positive</div>
+  <div class="tab" onclick="switchTab('negative',this)">👎 Negative</div>
+  <div class="tab" onclick="switchTab('flagged',this)">🚩 Flagged</div>
+  <div class="tab" onclick="switchTab('analytics',this)">📈 Analytics</div>
+  <div class="tab" onclick="switchTab('details',this)">ℹ Details</div>
+</div>
+
+<!-- TAB: Positive -->
+<div class="tab-pane active" id="pane-positive">
+  <div class="sort-row">
+    <span>Sort:</span>
+    <button class="sort-btn active" onclick="setSort('positive','recent',this)">Recent</button>
+    <button class="sort-btn" onclick="setSort('positive','helpful',this)">Helpful</button>
+    <button class="sort-btn" onclick="setSort('positive','hours',this)">Most Played</button>
+  </div>
+  <div id="list-positive"></div>
+  <div class="pages" id="pages-positive"></div>
+</div>
+
+<!-- TAB: Negative -->
+<div class="tab-pane" id="pane-negative">
+  <div class="sort-row">
+    <span>Sort:</span>
+    <button class="sort-btn active" onclick="setSort('negative','recent',this)">Recent</button>
+    <button class="sort-btn" onclick="setSort('negative','helpful',this)">Helpful</button>
+    <button class="sort-btn" onclick="setSort('negative','hours',this)">Most Played</button>
+  </div>
+  <div id="list-negative"></div>
+  <div class="pages" id="pages-negative"></div>
+</div>
+
+<!-- TAB: Flagged -->
+<div class="tab-pane" id="pane-flagged">
+  <div id="kw-summary"></div>
+  <div id="list-flagged"></div>
+  <div class="pages" id="pages-flagged"></div>
+</div>
+
+<!-- TAB: Analytics -->
+<div class="tab-pane" id="pane-analytics">
+  <div id="analyticsContent">
+    <div class="center-msg">
+      <div class="spinner"></div>
+      <span style="color:var(--muted);font-size:.85rem;">Waiting for data...</span>
+    </div>
+  </div>
+</div>
+
+<!-- TAB: Details -->
+<div class="tab-pane" id="pane-details">
+  <div id="detailsContent">
+    <div class="center-msg">
+      <div class="spinner"></div>
+      <span style="color:var(--muted);font-size:.85rem;">Loading game details...</span>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════════════════════
+const APP_ID = "{{ app_id }}";
+let analyticsData = null;
+let gameData = null;
+let chartsBuilt = false;
+let sortState  = { positive: 'recent', negative: 'recent', flagged: 'recent' };
+let pageState  = { positive: 1, negative: 1, flagged: 1 };
+let activeTab  = 'positive';
+let etlPollTimer = null;
+
+// ── Theme ─────────────────────────────────────────────────────────────────────
+const savedTheme = localStorage.getItem('esr_theme') || 'dark';
+applyTheme(savedTheme);
+function applyTheme(t) {
+  document.documentElement.className = t;
+  localStorage.setItem('esr_theme', t);
+}
+function toggleTheme() {
+  applyTheme(document.documentElement.className === 'dark' ? 'light' : 'dark');
+  if (chartsBuilt && analyticsData) {
+    chartsBuilt = false;
+    buildCharts(analyticsData);
+  }
+}
+const isDark = () => document.documentElement.className === 'dark';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INIT — runs on page load
+// ═══════════════════════════════════════════════════════════════════════════
+async function init() {
+  await loadGameInfo();
+  const status = await checkEtlStatus();
+
+  if (status === 'complete') {
+    // Already have data — load everything
+    await loadAnalytics();
+    loadReviews('positive');
+  } else {
+    // Auto-start ETL
+    showListMsg('positive', 'spinner', 'Fetching reviews from Steam…');
+    showListMsg('negative', 'spinner', 'Fetching reviews from Steam…');
+    showListMsg('flagged', 'spinner', 'Fetching reviews from Steam…');
+    await startEtl();
+  }
+}
+
+// ── Game info (header) ────────────────────────────────────────────────────────
+async function loadGameInfo() {
+  try {
+    const res = await fetch(`/api/games/${APP_ID}`);
+    gameData = await res.json();
+    if (!gameData || !gameData.name) return;
+    document.getElementById('navName').textContent = gameData.name;
+    document.getElementById('gameTitle').textContent = gameData.name;
+    document.getElementById('gameThumb').src = gameData.thumbnail_url ||
+      `https://cdn.cloudflare.steamstatic.com/steam/apps/${APP_ID}/header.jpg`;
+    document.getElementById('steamLink').href =
+      `https://store.steampowered.com/app/${APP_ID}`;
+    document.title = gameData.name + ' — EasySteamReview';
+    const sub = [gameData.developer, (gameData.genre||'').split(',')[0], gameData.release_date]
+                  .filter(Boolean).join(' · ');
+    document.getElementById('gameSub').textContent = sub;
+    // Pre-populate details tab from game data
+    renderDetails(gameData);
+  } catch(e) {}
+}
+
+// ── ETL orchestration ─────────────────────────────────────────────────────────
+async function checkEtlStatus() {
+  try {
+    const res = await fetch(`/api/etl/${APP_ID}/status`);
+    const d   = await res.json();
+    return d.status; // 'idle' | 'running' | 'complete' | 'error'
+  } catch(e) { return 'idle'; }
+}
+
+async function startEtl() {
+  try {
+    await fetch(`/api/etl/${APP_ID}`, { method: 'POST' });
+  } catch(e) {}
+  setEtlBar('running', 'Analyzing reviews with NLP sentiment engine…');
+  pollEtl();
+}
+
+function pollEtl() {
+  clearInterval(etlPollTimer);
+  let attempts = 0;
+  etlPollTimer = setInterval(async () => {
+    attempts++;
+    try {
+      const res = await fetch(`/api/etl/${APP_ID}/status`);
+      const d   = await res.json();
+      if (d.status === 'complete') {
+        clearInterval(etlPollTimer);
+        setEtlBar('done', `✓ Loaded ${d.total || 0} reviews — analysis complete`);
+        setTimeout(() => hideEtlBar(), 4000);
+        await loadAnalytics();
+        loadReviews('positive');
+        loadReviews('negative');
+        loadReviews('flagged');
+        // refresh stat cards
+      } else if (d.status === 'error') {
+        clearInterval(etlPollTimer);
+        setEtlBar('err', `Error: ${d.message || 'ETL failed'}`);
+        showListMsg('positive', 'error', d.message || 'ETL failed');
+      } else if (attempts > 60) {
+        clearInterval(etlPollTimer);
+        setEtlBar('err', 'Timeout — Steam API may be slow. Try Refresh.');
+      }
+    } catch(e) {}
+  }, 2500);
+}
+
+function manualRefresh() {
+  chartsBuilt = false;
+  showListMsg('positive', 'spinner', 'Refreshing…');
+  showListMsg('negative', 'spinner', 'Refreshing…');
+  showListMsg('flagged',  'spinner', 'Refreshing…');
+  document.getElementById('analyticsContent').innerHTML =
+    '<div class="center-msg"><div class="spinner"></div><span style="color:var(--muted);font-size:.85rem;">Rebuilding analytics…</span></div>';
+  startEtl();
+}
+
+// ETL bar helpers
+function setEtlBar(cls, msg) {
+  const bar = document.getElementById('etlBar');
+  bar.className = cls;
+  document.getElementById('etlMsg').textContent = msg;
+  document.getElementById('etlSpinner').style.display = cls === 'running' ? 'block' : 'none';
+}
+function hideEtlBar() {
+  document.getElementById('etlBar').className = '';
+  document.getElementById('etlBar').style.display = 'none';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ANALYTICS
+// ═══════════════════════════════════════════════════════════════════════════
+async function loadAnalytics() {
+  try {
+    const res = await fetch(`/api/analytics/${APP_ID}`);
+    analyticsData = await res.json();
+    if (analyticsData.error) {
+      updateStats(0, 0, 0, 0);
+      return;
+    }
+    const s = analyticsData.summary;
+    updateStats(s.total, s.positive_pct, s.negative_pct, s.flagged);
+    // Update game data if richer version returned
+    if (analyticsData.game && analyticsData.game.name) {
+      gameData = { ...gameData, ...analyticsData.game };
+      renderDetails(gameData);
+    }
+    // Render kw summary for flagged tab
+    renderKwSummary(analyticsData.keyword_stats || {});
+    // Build charts if on analytics tab
+    if (activeTab === 'analytics') buildCharts(analyticsData);
+  } catch(e) {
+    toast('Could not load analytics data', true);
+  }
+}
+
+function updateStats(total, posPct, negPct, flagged) {
+  document.getElementById('sTotal').textContent = total.toLocaleString();
+  document.getElementById('sPos').textContent   = posPct + '%';
+  document.getElementById('sNeg').textContent   = negPct + '%';
+  document.getElementById('sFlag').textContent  = flagged.toLocaleString();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// REVIEWS
+// ═══════════════════════════════════════════════════════════════════════════
+async function loadReviews(filter, page) {
+  page = page || pageState[filter] || 1;
+  pageState[filter] = page;
+  const sort   = sortState[filter];
+  const listEl = document.getElementById(`list-${filter}`);
+  const pgEl   = document.getElementById(`pages-${filter}`);
+
+  listEl.innerHTML = `<div class="center-msg"><div class="spinner"></div>
+    <span style="color:var(--muted);font-size:.82rem;">Loading ${filter} reviews...</span></div>`;
+
+  try {
+    const res  = await fetch(`/api/reviews/${APP_ID}?filter=${filter}&sort=${sort}&page=${page}`);
+    const data = await res.json();
+    if (!data.reviews || data.reviews.length === 0) {
+      listEl.innerHTML = `<div class="center-msg">
+        <span class="empty-icon">${filter==='positive'?'👍':filter==='negative'?'👎':'🚩'}</span>
+        <span style="color:var(--muted);font-size:.85rem;">No ${filter} reviews in the last 30 days.</span>
+      </div>`;
+      pgEl.innerHTML = '';
+      return;
+    }
+    listEl.innerHTML = data.reviews.map(r => revCardHTML(r, filter)).join('');
+    buildPagination(pgEl, page, data.pages, filter);
+  } catch(e) {
+    listEl.innerHTML = `<div class="center-msg" style="color:var(--red);">Failed to load reviews.</div>`;
+  }
+}
+
+function revCardHTML(r, filter) {
+  const cls   = filter === 'positive' ? 'pos' : filter === 'negative' ? 'neg' : 'flag';
+  const score = parseFloat(r.sentiment_score || 0);
+  const sColor = score > 0.05 ? 'var(--green)' : score < -0.05 ? 'var(--red)' : 'var(--yellow)';
+  const fillW  = Math.min(Math.abs(score) * 100, 100);
+  const fillL  = score >= 0 ? '50%' : `${50 - fillW/2}%`;
+  const kws    = (r.trigger_keywords || []);
+  const kwHtml = kws.map(k => {
+    const c = kwColor(k);
+    return `<span class="kw-badge" style="background:${c}18;color:${c};border-color:${c}44;">${esc(k)}</span>`;
+  }).join('');
+  const text = esc(r.review_text || '').slice(0, 700) + (r.review_text && r.review_text.length > 700 ? '…' : '');
+  const date = r.timestamp ? new Date(r.timestamp).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
+  const hrs  = r.hours_played ? parseFloat(r.hours_played).toFixed(1) + 'h played' : '';
+  return `<div class="rev-card ${cls}">
+    <div class="rev-text">${text || '<em style="color:var(--muted)">No text provided</em>'}</div>
+    ${kwHtml ? `<div style="margin-top:6px;">${kwHtml}</div>` : ''}
+    <div class="rev-meta">
+      <span>${r.is_positive ? '👍 Positive' : '👎 Negative'}</span>
+      ${date ? `<span>📅 ${date}</span>` : ''}
+      ${hrs  ? `<span>⏱ ${hrs}</span>` : ''}
+      ${r.votes_up ? `<span>🤝 ${r.votes_up} helpful</span>` : ''}
+      <span class="sent-chip" style="color:${sColor};">
+        NLP: ${score.toFixed(3)}
+        <span class="sent-bar">
+          <span class="sent-fill" style="width:${fillW/2}%;left:${fillL};background:${sColor};"></span>
+        </span>
+      </span>
+    </div>
+  </div>`;
+}
+
+function buildPagination(el, page, pages, filter) {
+  if (pages <= 1) { el.innerHTML = ''; return; }
+  const start = Math.max(1, page - 2);
+  const end   = Math.min(pages, page + 2);
+  let html = '';
+  if (start > 1)   html += `<button class="pg-btn" onclick="loadReviews('${filter}',1)">1</button>`;
+  if (start > 2)   html += `<span style="color:var(--muted);padding:0 3px">…</span>`;
+  for (let i = start; i <= end; i++)
+    html += `<button class="pg-btn ${i===page?'active':''}" onclick="loadReviews('${filter}',${i})">${i}</button>`;
+  if (end < pages - 1) html += `<span style="color:var(--muted);padding:0 3px">…</span>`;
+  if (end < pages) html += `<button class="pg-btn" onclick="loadReviews('${filter}',${pages})">${pages}</button>`;
+  el.innerHTML = html;
+}
+
+function setSort(filter, sort, btn) {
+  sortState[filter] = sort;
+  btn.closest('.sort-row').querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  loadReviews(filter, 1);
+}
+
+// ── Flagged keyword summary ───────────────────────────────────────────────────
+function renderKwSummary(stats) {
+  const el = document.getElementById('kw-summary');
+  if (!stats || Object.keys(stats).length === 0) { el.innerHTML = ''; return; }
+  const max = Math.max(...Object.values(stats));
+  el.innerHTML = `<div class="detail-box" style="margin-bottom:1rem;">
+    <h3>Trigger Keyword Breakdown</h3>
+    ${Object.entries(stats).map(([k, v]) => {
+      const c = kwColor(k);
+      return `<div class="kw-bar-row">
+        <span class="kw-bar-label">
+          <span class="kw-badge" style="background:${c}18;color:${c};border-color:${c}44;">${esc(k)}</span>
+        </span>
+        <div class="kw-bar-track">
+          <div class="kw-bar-fill" style="width:${Math.round(v/max*100)}%;background:${c};"></div>
+        </div>
+        <span class="kw-bar-count">${v}</span>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CHARTS  — all 5 fully working with Plotly
+// ═══════════════════════════════════════════════════════════════════════════
+function buildCharts(data) {
+  if (!data || data.error) {
+    document.getElementById('analyticsContent').innerHTML = `
+      <div class="center-msg">
+        <span class="empty-icon">📊</span>
+        <span style="color:var(--muted);">No analytics data yet. ETL will start automatically.</span>
+      </div>`;
+    return;
+  }
+
+  chartsBuilt = true;
+  const dark = isDark();
+  const bg    = dark ? '#0f1923' : '#ffffff';
+  const paper = dark ? '#0f1923' : '#f8fafc';
+  const txt   = dark ? '#dde6f0' : '#1a2d45';
+  const grid  = dark ? '#1e3558' : '#dde8f5';
+  const font  = { family: "'Inter', sans-serif", size: 11, color: txt };
+
+  const baseLayout = {
+    paper_bgcolor: paper, plot_bgcolor: bg, font,
+    margin: { t: 24, b: 48, l: 52, r: 24 },
+    legend: { bgcolor: 'transparent', font: { size: 11, color: txt } },
+    xaxis:  { gridcolor: grid, zerolinecolor: grid, tickfont: font },
+    yaxis:  { gridcolor: grid, zerolinecolor: grid, tickfont: font },
+  };
+  const cfg = { responsive: true, displayModeBar: false };
+
+  document.getElementById('analyticsContent').innerHTML = `
+    <div class="chart-grid">
+
+      <!-- Chart 1: Sentiment Trend -->
+      <div class="chart-box full">
+        <div class="chart-title">📉 Sentiment Trend — Last 30 Days</div>
+        <div class="chart-sub">Daily avg NLP sentiment score overlaid with review volumes</div>
+        <div class="chart-wrap" id="ch-trend"></div>
+      </div>
+
+      <!-- Chart 2: Hours Distribution -->
+      <div class="chart-box">
+        <div class="chart-title">⏱ Hours Played at Review</div>
+        <div class="chart-sub">How long players had played when they reviewed</div>
+        <div class="chart-wrap" id="ch-hours"></div>
+      </div>
+
+      <!-- Chart 3: Keyword Frequency -->
+      <div class="chart-box">
+        <div class="chart-title">🚩 Trigger Keyword Frequency</div>
+        <div class="chart-sub">Top flagged terms detected by NLP keyword scanner</div>
+        <div class="chart-wrap" id="ch-kw"></div>
+      </div>
+
+      <!-- Chart 4: Scatter — Sentiment vs Hours -->
+      <div class="chart-box">
+        <div class="chart-title">🔵 Sentiment vs Hours Played</div>
+        <div class="chart-sub">Does more playtime correlate with better reviews?</div>
+        <div class="chart-wrap" id="ch-scatter"></div>
+      </div>
+
+      <!-- Chart 5: Heatmap -->
+      <div class="chart-box">
+        <div class="chart-title">🗓 Review Intensity Heatmap</div>
+        <div class="chart-sub">Review volume by date × hours played bucket (last 14 days)</div>
+        <div class="chart-wrap" id="ch-heat"></div>
+      </div>
+
+    </div>`;
+
+  // ── Chart 1: Sentiment Trend ───────────────────────────────────────────────
+  const trend = data.sentiment_trend || [];
+  if (trend.length > 0) {
+    const dates = trend.map(d => d.date);
+    Plotly.newPlot('ch-trend', [
+      {
+        x: dates, y: trend.map(d => d.avg_sentiment),
+        name: 'Avg Sentiment', type: 'scatter', mode: 'lines+markers',
+        line: { color: '#00c8f0', width: 2.5, shape: 'spline' },
+        marker: { size: 5, color: '#00c8f0' },
+        yaxis: 'y'
+      },
+      {
+        x: dates, y: trend.map(d => d.positive),
+        name: 'Positive', type: 'bar',
+        marker: { color: 'rgba(16,185,129,0.55)' }, yaxis: 'y2'
+      },
+      {
+        x: dates, y: trend.map(d => d.negative),
+        name: 'Negative', type: 'bar',
+        marker: { color: 'rgba(239,68,68,0.55)' }, yaxis: 'y2'
+      }
+    ], {
+      ...baseLayout,
+      barmode: 'stack',
+      yaxis:  { ...baseLayout.yaxis, title: 'Sentiment', range: [-1.1, 1.1], tickformat: '.2f' },
+      yaxis2: { overlaying: 'y', side: 'right', title: 'Review Count',
+                gridcolor: 'transparent', tickfont: font },
+      height: 300
+    }, cfg);
+  } else {
+    document.getElementById('ch-trend').innerHTML =
+      '<div class="center-msg"><span style="color:var(--muted);">Not enough date data</span></div>';
+  }
+
+  // ── Chart 2: Hours Distribution ────────────────────────────────────────────
+  const hd = data.hours_distribution || { labels: [], positive: [], negative: [] };
+  if (hd.labels && hd.labels.length > 0) {
+    Plotly.newPlot('ch-hours', [
+      { x: hd.labels, y: hd.positive, name: 'Positive', type: 'bar',
+        marker: { color: 'rgba(16,185,129,0.75)' } },
+      { x: hd.labels, y: hd.negative, name: 'Negative', type: 'bar',
+        marker: { color: 'rgba(239,68,68,0.75)' } }
+    ], { ...baseLayout, barmode: 'group', height: 270 }, cfg);
+  } else {
+    document.getElementById('ch-hours').innerHTML =
+      '<div class="center-msg"><span style="color:var(--muted);">No hours data</span></div>';
+  }
+
+  // ── Chart 3: Keyword Bar Chart ─────────────────────────────────────────────
+  const ks = data.keyword_stats || {};
+  const kwEntries = Object.entries(ks).sort((a, b) => b[1] - a[1]).slice(0, 12);
+  if (kwEntries.length > 0) {
+    const colors = kwEntries.map(([k]) => kwColor(k));
+    Plotly.newPlot('ch-kw', [{
+      x: kwEntries.map(e => e[1]),
+      y: kwEntries.map(e => e[0]),
+      type: 'bar', orientation: 'h',
+      marker: { color: colors },
+      text: kwEntries.map(e => e[1]),
+      textposition: 'outside',
+      textfont: { color: txt, size: 11 }
+    }], {
+      ...baseLayout,
+      height: 270,
+      margin: { ...baseLayout.margin, l: 100 },
+      xaxis: { ...baseLayout.xaxis, title: 'Occurrences' },
+      yaxis: { ...baseLayout.yaxis, autorange: 'reversed' }
+    }, cfg);
+  } else {
+    document.getElementById('ch-kw').innerHTML =
+      '<div class="center-msg"><span style="color:var(--muted);">No flagged keywords found</span></div>';
+  }
+
+  // ── Chart 4: Scatter — Sentiment vs Hours ──────────────────────────────────
+  const scatter = data.scatter || [];
+  if (scatter.length > 0) {
+    const posP = scatter.filter(p => p.pos);
+    const negP = scatter.filter(p => !p.pos);
+    Plotly.newPlot('ch-scatter', [
+      {
+        x: posP.map(p => p.x), y: posP.map(p => p.y),
+        name: 'Positive', mode: 'markers', type: 'scatter',
+        marker: { color: 'rgba(16,185,129,0.55)', size: 6 }
+      },
+      {
+        x: negP.map(p => p.x), y: negP.map(p => p.y),
+        name: 'Negative', mode: 'markers', type: 'scatter',
+        marker: { color: 'rgba(239,68,68,0.55)', size: 6 }
+      }
+    ], {
+      ...baseLayout,
+      height: 270,
+      xaxis: { ...baseLayout.xaxis, title: 'Hours Played', type: 'log' },
+      yaxis: { ...baseLayout.yaxis, title: 'Sentiment Score', range: [-1.1, 1.1] }
+    }, cfg);
+  } else {
+    document.getElementById('ch-scatter').innerHTML =
+      '<div class="center-msg"><span style="color:var(--muted);">No scatter data available</span></div>';
+  }
+
+  // ── Chart 5: Heatmap ───────────────────────────────────────────────────────
+  const hm = data.heatmap || { x: [], y: [], z: [] };
+  if (hm.x && hm.x.length > 0 && hm.z && hm.z.length > 0) {
+    Plotly.newPlot('ch-heat', [{
+      x: hm.x, y: hm.y, z: hm.z,
+      type: 'heatmap',
+      colorscale: dark ? [
+        [0, '#0f1923'], [0.25, '#1e3558'], [0.5, '#0080a0'],
+        [0.75, '#00c8f0'], [1, '#ffffff']
+      ] : 'Blues',
+      showscale: true,
+      colorbar: { tickfont: { color: txt, size: 10 } }
+    }], {
+      ...baseLayout,
+      height: 270,
+      margin: { ...baseLayout.margin, l: 80 },
+      xaxis: { ...baseLayout.xaxis, title: 'Date' },
+      yaxis: { ...baseLayout.yaxis, title: 'Hours Bucket', autorange: 'reversed' }
+    }, cfg);
+  } else {
+    document.getElementById('ch-heat').innerHTML =
+      '<div class="center-msg"><span style="color:var(--muted);">Not enough data for heatmap</span></div>';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DETAILS TAB
+// ═══════════════════════════════════════════════════════════════════════════
+function renderDetails(g) {
+  if (!g || !g.name) return;
+  const tagHtml = (g.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('');
+  const steamScore = g.rating ? `${g.rating}%` :
+    (g.positive_reviews && g.total_reviews ?
+      `${Math.round(g.positive_reviews/g.total_reviews*100)}%` : '—');
+
+  document.getElementById('detailsContent').innerHTML = `
+    <div class="detail-grid">
+
+      <div class="detail-box">
+        <h3>Game Information</h3>
+        ${dr('Title',        g.name)}
+        ${dr('Developer',    g.developer)}
+        ${dr('Publisher',    g.publisher)}
+        ${dr('Release Date', g.release_date)}
+        ${dr('Genre',        g.genre)}
+        ${dr('Price',        g.price)}
+      </div>
+
+      <div class="detail-box">
+        <h3>Review Statistics (30d)</h3>
+        ${dr('Steam Score',      steamScore)}
+        ${dr('MetaCritic',       g.metacritic || '—')}
+        ${dr('Total Reviews',    (g.total_reviews||0).toLocaleString())}
+        ${dr('Positive',         (g.positive_reviews||0).toLocaleString())}
+        ${dr('Negative',         (g.negative_reviews||0).toLocaleString())}
+        ${dr('Avg NLP Sentiment', analyticsData ? analyticsData.summary?.avg_sentiment?.toFixed(4) || '—' : '—')}
+      </div>
+
+      <div class="detail-box" style="grid-column:1/-1;">
+        <h3>Description</h3>
+        <p class="desc-text">${esc(g.description || 'No description available for this game.')}</p>
+        ${tagHtml ? `<div style="margin-top:12px;"><strong style="font-size:.78rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.05em;">Categories & Tags</strong><div class="tag-cloud">${tagHtml}</div></div>` : ''}
+      </div>
+
+      <div class="detail-box">
+        <h3>Links</h3>
+        ${dr('Steam Store',    `<a href="https://store.steampowered.com/app/${APP_ID}" target="_blank" style="color:var(--accent);">Open ↗</a>`)}
+        ${dr('Community Hub',  `<a href="https://steamcommunity.com/app/${APP_ID}" target="_blank" style="color:var(--accent);">Open ↗</a>`)}
+        ${dr('SteamDB',        `<a href="https://steamdb.info/app/${APP_ID}" target="_blank" style="color:var(--accent);">Open ↗</a>`)}
+      </div>
+
+      <div class="detail-box">
+        <h3>Raw App ID</h3>
+        ${dr('App ID', APP_ID)}
+        ${dr('CDN Image', `<a href="https://cdn.cloudflare.steamstatic.com/steam/apps/${APP_ID}/header.jpg" target="_blank" style="color:var(--accent);font-size:.75rem;">View ↗</a>`)}
+      </div>
+
+    </div>`;
+}
+
+function dr(label, val) {
+  return `<div class="drow"><span class="lbl">${label}</span><span class="val">${val || '—'}</span></div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════════════════════════════════
+function switchTab(name, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById(`pane-${name}`).classList.add('active');
+  activeTab = name;
+
+  if (name === 'analytics') {
+    if (!chartsBuilt && analyticsData && !analyticsData.error) {
+      buildCharts(analyticsData);
+    }
+  }
+  if (name === 'negative' && !document.getElementById('list-negative').children.length) {
+    loadReviews('negative');
+  }
+  if (name === 'flagged' && !document.getElementById('list-flagged').children.length) {
+    loadReviews('flagged');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════════════════════════
+function esc(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showListMsg(filter, type, msg) {
+  const el = document.getElementById(`list-${filter}`);
+  if (type === 'spinner') {
+    el.innerHTML = `<div class="center-msg"><div class="spinner"></div>
+      <span style="color:var(--muted);font-size:.82rem;">${esc(msg)}</span></div>`;
+  } else {
+    el.innerHTML = `<div class="center-msg" style="color:var(--red);">${esc(msg)}</div>`;
+  }
+}
+
+function kwColor(kw) {
+  const map = {
+    cheating:'#ef4444', cheat:'#ef4444', fraud:'#ef4444', stolen:'#ef4444',
+    hacked:'#f97316', hack:'#f97316',
+    scam:'#f59e0b', unfair:'#f59e0b',
+    buggy:'#8b5cf6', bug:'#8b5cf6', crash:'#8b5cf6', broken:'#8b5cf6',
+    'pay-to-win':'#ec4899', p2w:'#ec4899',
+    moderation:'#06b6d4', ban:'#06b6d4',
+    toxic:'#84cc16', refund:'#64748b',
+  };
+  return map[kw.toLowerCase()] || '#94a3b8';
+}
+
+function toast(msg, isErr = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show' + (isErr ? ' err' : '');
+  setTimeout(() => el.className = '', 4500);
+}
+
+// ── Start ─────────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>EasySteamReview — Analytics Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+/* ── CSS VARIABLES ── */
+:root{
+  --bg:#080c14;--surface:#0f1923;--surface2:#162030;--surface3:#1c2a3e;
+  --border:#1e3558;--accent:#00c8f0;--accent2:#7c3aed;
+  --green:#10b981;--red:#ef4444;--yellow:#f59e0b;
+  --text:#dde6f0;--muted:#5a7494;--muted2:#8ba3be;
+}
+.light{
+  --bg:#eef2f9;--surface:#ffffff;--surface2:#f0f4fb;--surface3:#e4ecf8;
+  --border:#c8d8ee;--accent:#0080cc;--accent2:#6d28d9;
+  --green:#059669;--red:#dc2626;--yellow:#d97706;
+  --text:#1a2d45;--muted:#7090b0;--muted2:#4a6a90;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);
+  background-image:radial-gradient(ellipse 120% 60% at 50% -5%,rgba(0,200,240,.07),transparent);}
+
+/* ── NAV ── */
+nav{position:sticky;top:0;z-index:200;
+  background:rgba(8,12,20,.88);backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 1.75rem;height:62px;gap:16px;}
+.logo{font-family:'Rajdhani',sans-serif;font-size:1.5rem;font-weight:700;
+  background:linear-gradient(130deg,var(--accent) 20%,var(--accent2));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap;}
+.logo-sub{font-family:'Share Tech Mono',monospace;font-size:.62rem;
+  color:var(--accent);border:1px solid rgba(0,200,240,.35);
+  padding:2px 7px;border-radius:3px;margin-left:6px;vertical-align:middle;letter-spacing:.06em;}
+.live-dot{width:7px;height:7px;background:var(--green);border-radius:50%;
+  display:inline-block;margin-right:5px;animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.4;transform:scale(1.5);}}
+.theme-btn{background:var(--surface2);border:1px solid var(--border);color:var(--muted2);
+  padding:5px 14px;border-radius:6px;cursor:pointer;font-size:.82rem;transition:all .2s;}
+.theme-btn:hover{border-color:var(--accent);color:var(--accent);}
+
+/* ── HERO ── */
+.hero{text-align:center;padding:4rem 1.5rem 2.5rem;position:relative;}
+.hero h1{font-family:'Rajdhani',sans-serif;
+  font-size:clamp(2.2rem,5.5vw,4rem);font-weight:700;line-height:1.05;
+  background:linear-gradient(135deg,#fff 25%,var(--accent) 65%,var(--accent2) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.hero p{color:var(--muted2);margin-top:.85rem;font-size:1rem;max-width:520px;margin-inline:auto;line-height:1.65;}
+.hero-stats{display:flex;gap:2rem;justify-content:center;margin-top:1.75rem;flex-wrap:wrap;}
+.hero-stat{text-align:center;}
+.hero-stat-val{font-family:'Rajdhani',sans-serif;font-size:1.6rem;font-weight:700;color:var(--accent);}
+.hero-stat-lbl{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-top:1px;}
+
+/* ── SEARCH ── */
+.search-section{max-width:680px;margin:0 auto;padding:0 1.5rem;}
+.search-row{position:relative;display:flex;gap:0;}
+.search-input{flex:1;padding:13px 20px;
+  background:var(--surface);border:1.5px solid var(--border);
+  border-right:none;border-radius:10px 0 0 10px;
+  color:var(--text);font-size:.95rem;outline:none;font-family:'Inter',sans-serif;
+  transition:border-color .2s;}
+.search-input::placeholder{color:var(--muted);}
+.search-input:focus{border-color:var(--accent);}
+.search-btn{padding:13px 22px;background:var(--accent);border:1.5px solid var(--accent);
+  border-radius:0 10px 10px 0;color:#000;font-weight:700;font-size:.875rem;
+  cursor:pointer;white-space:nowrap;transition:opacity .2s;}
+.search-btn:hover{opacity:.85;}
+.search-dropdown{position:absolute;top:calc(100% + 5px);left:0;right:0;
+  background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  max-height:420px;overflow-y:auto;z-index:300;display:none;
+  box-shadow:0 16px 40px rgba(0,0,0,.5);}
+.search-dropdown.open{display:block;}
+.sd-item{display:flex;align-items:center;gap:12px;padding:10px 14px;
+  cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s;}
+.sd-item:last-child{border-bottom:none;}
+.sd-item:hover{background:var(--surface2);}
+.sd-img{width:64px;height:36px;object-fit:cover;border-radius:4px;flex-shrink:0;
+  background:var(--surface2);}
+.sd-name{font-weight:600;font-size:.875rem;line-height:1.3;}
+.sd-meta{font-size:.72rem;color:var(--muted2);margin-top:2px;}
+.sd-price{margin-left:auto;font-family:'Share Tech Mono',monospace;font-size:.78rem;
+  color:var(--green);white-space:nowrap;padding-left:8px;}
+.sd-loading{padding:16px;text-align:center;color:var(--muted);font-size:.85rem;}
+
+/* ── SECTION HEADER ── */
+.sec-head{display:flex;align-items:center;gap:12px;padding:2.2rem 1.75rem 1rem;}
+.sec-title{font-family:'Rajdhani',sans-serif;font-size:1.5rem;font-weight:700;}
+.sec-line{flex:1;height:1px;background:linear-gradient(90deg,var(--border),transparent);}
+.sec-badge{font-family:'Share Tech Mono',monospace;font-size:.68rem;
+  color:var(--accent);border:1px solid rgba(0,200,240,.35);padding:2px 9px;border-radius:3px;}
+#gameCount{font-size:.78rem;color:var(--muted);}
+
+/* ── GAME GRID ── */
+.games-grid{display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(175px,1fr));
+  gap:14px;padding:0 1.75rem 3rem;}
+
+/* ── GAME CARD ── */
+.game-card{background:var(--surface);border:1px solid var(--border);border-radius:11px;
+  overflow:hidden;cursor:pointer;position:relative;
+  transition:transform .2s,border-color .25s,box-shadow .25s;}
+.game-card:hover{transform:translateY(-5px);border-color:var(--accent);
+  box-shadow:0 10px 36px rgba(0,200,240,.14);}
+.gc-img{width:100%;height:98px;object-fit:cover;display:block;background:var(--surface2);}
+.gc-body{padding:9px 11px 11px;}
+.gc-name{font-weight:600;font-size:.82rem;line-height:1.35;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  min-height:2.2em;}
+.gc-dev{font-size:.68rem;color:var(--muted);margin-top:3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.gc-footer{display:flex;align-items:center;justify-content:space-between;
+  margin-top:8px;padding-top:7px;border-top:1px solid var(--border);}
+.gc-price{font-family:'Share Tech Mono',monospace;font-size:.75rem;
+  color:var(--green);font-weight:600;}
+.gc-rating{font-size:.68rem;padding:2px 7px;border-radius:10px;font-weight:700;}
+.gc-rating.good{background:rgba(16,185,129,.15);color:var(--green);}
+.gc-rating.mid{background:rgba(245,158,11,.15);color:var(--yellow);}
+.gc-rating.bad{background:rgba(239,68,68,.15);color:var(--red);}
+.gc-rank{position:absolute;top:7px;left:7px;background:rgba(0,0,0,.78);
+  backdrop-filter:blur(4px);color:#fff;font-family:'Share Tech Mono',monospace;
+  font-size:.62rem;font-weight:700;padding:2px 7px;border-radius:3px;}
+
+/* ── SKELETON ── */
+.sk{background:linear-gradient(90deg,var(--surface) 25%,var(--surface2) 50%,var(--surface) 75%);
+  background-size:200% 100%;animation:shimmer 1.6s infinite;border-radius:6px;}
+@keyframes shimmer{0%{background-position:200% 0;}100%{background-position:-200% 0;}}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:22px;right:22px;padding:11px 18px;
+  background:var(--surface);border:1px solid var(--green);border-radius:9px;
+  color:var(--text);font-size:.85rem;z-index:9999;
+  transform:translateY(70px);opacity:0;transition:all .3s;max-width:320px;}
+#toast.show{transform:translateY(0);opacity:1;}
+#toast.err{border-color:var(--red);}
+
+/* ── FOOTER ── */
+footer{border-top:1px solid var(--border);padding:1.5rem 1.75rem;
+  display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;}
+footer p{font-size:.75rem;color:var(--muted);}
+footer span{color:var(--accent);}
+
+@media(max-width:600px){
+  .hero-stats{gap:1.2rem;}
+  .games-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div style="display:flex;align-items:center;">
+    <span class="logo">EasySteamReview</span>
+    <span class="logo-sub">ANALYTICS</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:14px;">
+    <span style="font-family:'Share Tech Mono',monospace;font-size:.7rem;color:var(--muted2);">
+      <span class="live-dot"></span>STEAM DATA
+    </span>
+    <button class="theme-btn" id="themeBtn" onclick="toggleTheme()">☀ Light</button>
+  </div>
+</nav>
+
+<div class="hero">
+  <h1>Steam Review<br/>Intelligence Platform</h1>
+  <p>NLP-powered sentiment analysis, keyword flagging, and 30-day trend analytics for any Steam game.</p>
+  <div class="hero-stats">
+    <div class="hero-stat">
+      <div class="hero-stat-val">100</div>
+      <div class="hero-stat-lbl">Top Games</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-val">30d</div>
+      <div class="hero-stat-lbl">Review Window</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-val">NLP</div>
+      <div class="hero-stat-lbl">Sentiment AI</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-val">5</div>
+      <div class="hero-stat-lbl">Analytics Charts</div>
+    </div>
+  </div>
+</div>
+
+<!-- Search -->
+<div class="search-section">
+  <div class="search-row">
+    <input class="search-input" id="searchInput" type="text"
+      placeholder="Search any Steam game — e.g. Elden Ring, Counter-Strike, Baldur's Gate..."
+      autocomplete="off"
+      oninput="onSearchInput(this.value)"
+      onkeydown="onSearchKey(event)"/>
+    <button class="search-btn" onclick="doSearch()">Search</button>
+    <div class="search-dropdown" id="searchDropdown"></div>
+  </div>
+</div>
+
+<!-- Top 100 grid -->
+<div class="sec-head">
+  <span class="sec-title">🔥 Top 100 Most Played</span>
+  <span class="sec-badge">STEAMSPY</span>
+  <div class="sec-line"></div>
+  <span id="gameCount"></span>
+</div>
+<div class="games-grid" id="gamesGrid"></div>
+
+<footer>
+  <p>EasySteamReview Analytics &nbsp;·&nbsp; Powered by <span>Steam API</span> + <span>SteamSpy</span></p>
+  <p>Data window: <span>Last 30 Days</span></p>
+</footer>
+
+<div id="toast"></div>
+
+<script>
+// ── Theme ─────────────────────────────────────────────────────────────────────
+const savedTheme = localStorage.getItem('esr_theme') || 'dark';
+setTheme(savedTheme);
+function setTheme(t) {
+  document.documentElement.className = t;
+  document.getElementById('themeBtn').textContent = t === 'dark' ? '☀ Light' : '🌙 Dark';
+  localStorage.setItem('esr_theme', t);
+}
+function toggleTheme() {
+  setTheme(document.documentElement.className === 'dark' ? 'light' : 'dark');
+}
+
+// ── Load top 100 ──────────────────────────────────────────────────────────────
+let allGames = [];
+
+async function loadTop100() {
+  renderSkeletons(20);
+  try {
+    const res = await fetch('/api/games/top100');
+    allGames = await res.json();
+    if (!Array.isArray(allGames) || allGames.length === 0) {
+      document.getElementById('gamesGrid').innerHTML =
+        '<p style="color:var(--muted);padding:2rem;grid-column:1/-1;">Failed to load games. Check your internet connection and restart.</p>';
+      return;
+    }
+    renderGrid(allGames);
+    document.getElementById('gameCount').textContent = allGames.length + ' games loaded';
+  } catch(e) {
+    toast('Could not load top games — check connection', true);
+    document.getElementById('gamesGrid').innerHTML = '';
+  }
+}
+
+function renderSkeletons(n) {
+  document.getElementById('gamesGrid').innerHTML =
+    Array(n).fill(`<div style="border-radius:11px;overflow:hidden;border:1px solid var(--border);">
+      <div class="sk" style="height:98px;"></div>
+      <div style="padding:9px 11px 11px;">
+        <div class="sk" style="height:14px;margin-bottom:6px;"></div>
+        <div class="sk" style="height:10px;width:60%;"></div>
+        <div style="display:flex;justify-content:space-between;margin-top:10px;">
+          <div class="sk" style="height:10px;width:30%;"></div>
+          <div class="sk" style="height:10px;width:25%;"></div>
+        </div>
+      </div></div>`).join('');
+}
+
+function renderGrid(games) {
+  const grid = document.getElementById('gamesGrid');
+  if (!games.length) {
+    grid.innerHTML = '<p style="color:var(--muted);padding:2rem;grid-column:1/-1;text-align:center;">No games found.</p>';
+    return;
+  }
+  grid.innerHTML = games.map((g, i) => gameCardHTML(g, i + 1)).join('');
+}
+
+function gameCardHTML(g, rank) {
+  const r = parseFloat(g.rating) || 0;
+  const rCls = r >= 70 ? 'good' : r >= 45 ? 'mid' : 'bad';
+  const img = g.thumbnail_url || `https://cdn.cloudflare.steamstatic.com/steam/apps/${g.app_id}/header.jpg`;
+  const dev = g.developer || g.publisher || '';
+  const price = g.price || 'Free';
+  return `<div class="game-card" onclick="goDash('${esc(g.app_id)}')">
+    <img class="gc-img" src="${esc(img)}" loading="lazy"
+      onerror="this.src='https://cdn.cloudflare.steamstatic.com/steam/apps/${esc(g.app_id)}/header.jpg'"/>
+    ${rank ? `<span class="gc-rank">#${rank}</span>` : ''}
+    <div class="gc-body">
+      <div class="gc-name" title="${esc(g.name)}">${esc(g.name)}</div>
+      <div class="gc-dev">${esc(dev)}</div>
+      <div class="gc-footer">
+        <span class="gc-price">${esc(price)}</span>
+        ${r > 0 ? `<span class="gc-rating ${rCls}">${r}%</span>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function goDash(appId) {
+  window.location.href = `/dashboard/${appId}`;
+}
+
+// ── Smart Search ───────────────────────────────────────────────────────────────
+let _searchTimer = null;
+let _lastQuery = '';
+
+function onSearchInput(val) {
+  clearTimeout(_searchTimer);
+  const dd = document.getElementById('searchDropdown');
+  if (!val || val.trim().length < 2) {
+    dd.classList.remove('open');
+    return;
+  }
+  dd.innerHTML = '<div class="sd-loading">Searching Steam...</div>';
+  dd.classList.add('open');
+  _searchTimer = setTimeout(() => liveSearch(val.trim()), 380);
+}
+
+async function liveSearch(q) {
+  if (q === _lastQuery) return;
+  _lastQuery = q;
+  const dd = document.getElementById('searchDropdown');
+  try {
+    const res = await fetch(`/api/games/search?q=${encodeURIComponent(q)}`);
+    const games = await res.json();
+    if (!Array.isArray(games) || games.length === 0) {
+      dd.innerHTML = '<div class="sd-loading">No results found.</div>';
+      return;
+    }
+    dd.innerHTML = games.map(g => `
+      <div class="sd-item" onclick="goDash('${esc(g.app_id)}')">
+        <img class="sd-img" src="${esc(g.thumbnail_url||'')}"
+          onerror="this.src='https://cdn.cloudflare.steamstatic.com/steam/apps/${esc(g.app_id)}/header.jpg'"/>
+        <div style="flex:1;min-width:0;">
+          <div class="sd-name">${esc(g.name)}</div>
+          <div class="sd-meta">${esc(g.genre||g.developer||'')}${g.release_date?' · '+esc(g.release_date):''}</div>
+        </div>
+        <span class="sd-price">${esc(g.price||'Free')}</span>
+      </div>`).join('');
+  } catch(e) {
+    dd.innerHTML = '<div class="sd-loading">Search error — try again.</div>';
+  }
+}
+
+async function doSearch() {
+  const q = document.getElementById('searchInput').value.trim();
+  if (!q || q.length < 2) return;
+  _lastQuery = '';
+  await liveSearch(q);
+}
+
+function onSearchKey(e) {
+  if (e.key === 'Enter') doSearch();
+  if (e.key === 'Escape') document.getElementById('searchDropdown').classList.remove('open');
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.search-row')) {
+    document.getElementById('searchDropdown').classList.remove('open');
+  }
+});
+
+// ── Utils ─────────────────────────────────────────────────────────────────────
+function esc(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function toast(msg, isErr=false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show' + (isErr ? ' err' : '');
+  setTimeout(() => el.className = '', 4000);
+}
+
+loadTop100();
+</script>
+</body>
+</html>
