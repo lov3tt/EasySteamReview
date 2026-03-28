@@ -96,9 +96,12 @@ The gaming analytics market is highly competitive, with various tools and platfo
 
 ### Conclusion
 
-This project aims to address a critical gap in the gaming analytics space by providing developers, publishers, and moderators with insights into cheating and moderation-related issues through player reviews. By leveraging APIs, NLP techniques, and visualization tools, this dashboard will offer actionable insights that can help improve game communities and player experiences.
+- This project aims to address a critical gap in the gaming analytics space by providing developers, publishers, and moderators with insights into cheating and moderation-related issues through player reviews. By leveraging APIs, NLP techniques, and visualization tools, this dashboard will offer actionable insights that can help improve game communities and player experiences.
 ---
 ### Q & A
 - **Q**: Why did I choose a sample size of 800 and a limiting factor of 30 days for my project?
 - **A**: A sample size of 800 is considered effective for a 30-day period because it provides a balance between high statistical precision and practical feasibility. Specifically, it offers a small margin of error (approximately +/- 3.5% ), high statistical power to detect meaningful changes over a month, and enough data to perform sub-group analysis (such as comparing weekly trends) without the high costs of larger samples.
+
+- <img width="1866" height="284" alt="Screenshot 2026-03-28 122619" src="https://github.com/user-attachments/assets/bae04fae-a358-43da-9773-65a91a5871e8" />
+
 
