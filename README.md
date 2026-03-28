@@ -11,8 +11,6 @@ The gaming industry has grown exponentially over the past decade, with millions 
 **Objective:**  
 The objective is to build a tool that analyzes player reviews from the Steam platform to identify trends, sentiment, and specific mentions related to cheating and moderation. This tool will provide developers, game publishers, and moderators with actionable insights to improve their games and communities.
 
-<img width="1826" height="795" alt="Screenshot 2026-03-28 034239" src="https://github.com/user-attachments/assets/b0b8a842-aa5f-4c90-a677-2a9dc2791ea8" />
-
 ---
 
 ### Competitive Analysis
@@ -49,6 +47,8 @@ The gaming analytics market is highly competitive, with various tools and platfo
      - "moderators"
      - "moderation."
    - Use regular expressions and entity recognition to detect variations in language (e.g., "hacked," "scam," or "unfair").
+
+     <img width="1826" height="795" alt="Screenshot 2026-03-28 034239" src="https://github.com/user-attachments/assets/b0b8a842-aa5f-4c90-a677-2a9dc2791ea8" />
 
 #### 3. **Dashboard Features:**
    - **Keyword Tracking:** A dashboard view showing the frequency of cheating/moderation-related keywords over time.
