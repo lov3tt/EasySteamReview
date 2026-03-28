@@ -95,9 +95,10 @@ The gaming analytics market is highly competitive, with various tools and platfo
 1. **Technology Stack:**
    - **Programming Language:** Python
    - **API Framework:** FastAPI (for building the dashboard API)
-   - **NLP Library:** NLTK
+   - **NLP Library:** NLTK 
    - **Visualization Libraries:** Matplotlib, Seaborn, or Plotly.
    - **Database:** Sqlalchemy
+   - **LLM AI** Nvidia/Nemotron (For the comprehensive Data Analysis of user reviews)
 
 2. **Implementation Steps:**
    - Run START_EasySteamReview.bat and it'll automatically set up the venv and intall all the Library needed to run in the Requirements.txt and launch locally on your browser.
