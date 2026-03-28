@@ -104,7 +104,7 @@ The gaming analytics market is highly competitive, with various tools and platfo
    - Run START_EasySteamReview.bat and it'll automatically set up the venv and intall all the Library needed to run in the Requirements.txt and launch locally on your browser.
    - To run the AI bot locally. Need to get a free api key from https://openrouter.ai/
    - Once API Key is acquire, make a .env file in the main folder and name it OPENROUTER_API_KEY=   Your API Key
-   - 
+   - **LINK** https://easysteamreview.onrender.com/
 <img width="1028" height="699" alt="Screenshot 2026-03-28 174711" src="https://github.com/user-attachments/assets/dacf4202-b225-4956-bd63-71085c7fc239" />
 
 ---
