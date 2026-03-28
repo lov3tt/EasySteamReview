@@ -115,11 +115,15 @@ The gaming analytics market is highly competitive, with various tools and platfo
 - This project aims to address a critical gap in the gaming analytics space by providing developers, publishers, and moderators with insights into cheating and moderation-related issues through player reviews. By leveraging APIs, NLP techniques, and visualization tools, this dashboard will offer actionable insights that can help improve game communities and player experiences.
 ---
 ### Q & A
-- **Q**: Why did I choose a NLP sentiment model over just thumb up and down?
+- **Q** Why use a LLM?
+- **A** Using an LLM for data analysis reports enables rapid, automated insights by processing vast datasets, summarizing complex findings in natural language, and generating actionable recommendations.
+- **Q** Why that specific model for the LLM?
+- **A** NVIDIA Nemotron-3-Super-120B-A12B is ideal for data analysis due to its 120B parameter reasoning capability paired with high-efficiency 12B active parameter inference. It excels at complex, agentic data tasks, offering superior speed (4x over older models), a 1M token context window, and high-performance, structured data processing via a hybrid Mamba-Transformer architecture. (It's also free)
+- **Q**: Why NLP sentiment model over just thumb up and down?
 - **A**" NLP sentiment analysis is superior to thumbs up/down because it extracts deep context, nuances, and specific emotions from unstructured text, whereas binary feedback only shows if a user is happy, not why. NLP uncovers granular insights like “too slow” or “great value,” allowing for automated, actionable, and scalable customer experience improvements, unlike limited binary clicks. Which help show greater depth behind the users review at the time instead of only just seeing a postive or negative report.
   <img width="859" height="511" alt="Screenshot 2026-03-28 123420" src="https://github.com/user-attachments/assets/543104b4-37e3-4011-846b-d0d1069a9f74" />
 
-- **Q**: Why did I choose a sample size of 800 and a limiting factor of 30 days for my project?
+- **Q**: Why choose a sample size of 800 reviews and a limiting factor of 30 days?
 - **A**: A sample size of 800 is considered effective for a 30-day period because it provides a balance between high statistical precision and practical feasibility. Specifically, it offers a small margin of error (approximately +/- 3.5% ), high statistical power to detect meaningful changes over a month, and enough data to perform sub-group analysis (such as comparing weekly trends) without the high costs of larger samples.
 
 
