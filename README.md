@@ -58,7 +58,7 @@ The gaming analytics market is highly competitive, with various tools and platfo
 
 #### 3. **Dashboard Features:**
    - **Keyword Tracking:** A dashboard view showing the frequency of cheating/moderation-related keywords over time.
-   - **Automatic ETL** Automatically run ETL for the game when clicked up and an option to refresh & repopulated the ETL model with the Refresh button on top right.
+   - **Automatic ETL** Automatically run ETL for the game on first run. To see the most current Statistic, hit the Reload button on the top right to run the **ETL** script again.
 <img width="1847" height="895" alt="Screenshot 2026-03-28 175115" src="https://github.com/user-attachments/assets/4c14290e-6dab-4162-bde2-c76ee25fb5b5" />
 
 
