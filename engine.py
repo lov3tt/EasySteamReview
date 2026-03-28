@@ -2,7 +2,7 @@ import httpx
 import asyncio
 import re
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from textblob import TextBlob
 from collections import Counter, defaultdict
 import nltk
@@ -154,6 +154,77 @@ async def _steamspy_detail(app_id: str, client: httpx.AsyncClient) -> dict:
         "negative_reviews": negative,
     }
 
+
+async def fetch_steam_review_summary(app_id: str, client: httpx.AsyncClient) -> dict | None:
+    """
+    Full lifetime review totals from the store's query_summary.
+    Use language=all so totals match the Steam store (see Valve community threads).
+    """
+    params = {
+        "json": 1,
+        "language": "all",
+        "filter": "all",
+        "review_type": "all",
+        "purchase_type": "all",
+        "num_per_page": 1,
+    }
+    data = await fetch_json(client, f"{STEAM_REVIEWS_URL}/{app_id}", params)
+    if not data or not data.get("success"):
+        return None
+    qs = data.get("query_summary") or {}
+    tp = int(qs.get("total_positive") or 0)
+    tn = int(qs.get("total_negative") or 0)
+    tt = qs.get("total_reviews")
+    tt = int(tt) if tt is not None else tp + tn
+    if tt <= 0:
+        tt = tp + tn
+    if tt <= 0 and tp + tn <= 0:
+        return None
+    if tt <= 0:
+        tt = tp + tn
+    rating = round(tp / tt * 100, 1) if tt > 0 else 0.0
+    return {
+        "total_reviews": tt,
+        "positive_reviews": tp,
+        "negative_reviews": tn,
+        "rating": rating,
+    }
+
+
+async def merge_lifetime_stats_if_missing(app_id: str, d: dict) -> dict:
+    """
+    Steam appdetails often omits review counts. Fill from store query_summary first,
+    then SteamSpy, so search / dashboard show real lifetime totals.
+    """
+    if not d:
+        return d
+    aid = str(app_id)
+    tr = int(d.get("total_reviews") or 0)
+    pr = int(d.get("positive_reviews") or 0)
+    nr = int(d.get("negative_reviews") or 0)
+    if tr > 0 or pr + nr > 0:
+        return d
+    async with httpx.AsyncClient() as client:
+        steam = await fetch_steam_review_summary(aid, client)
+        if steam and int(steam.get("total_reviews") or 0) > 0:
+            d["total_reviews"] = steam["total_reviews"]
+            d["positive_reviews"] = steam["positive_reviews"]
+            d["negative_reviews"] = steam["negative_reviews"]
+            d["rating"] = float(steam["rating"] or 0)
+            return d
+        spy = await _steamspy_detail(aid, client)
+    if not spy:
+        return d
+    d["total_reviews"] = int(spy.get("total_reviews") or 0)
+    d["positive_reviews"] = int(spy.get("positive_reviews") or 0)
+    d["negative_reviews"] = int(spy.get("negative_reviews") or 0)
+    d["rating"] = float(spy.get("rating") or 0)
+    for fld in ("developer", "publisher", "genre"):
+        if spy.get(fld) and not d.get(fld):
+            d[fld] = spy[fld]
+    return d
+
+
 # ── Smart search ──────────────────────────────────────────────────────────────
 
 async def search_games(query: str) -> list:
@@ -190,6 +261,10 @@ async def search_games(query: str) -> list:
                     })
                 else:
                     results.append(d)
+        for r in results:
+            aid = r.get("app_id")
+            if aid:
+                await merge_lifetime_stats_if_missing(str(aid), r)
         return results
 
 # ── Reviews ETL ───────────────────────────────────────────────────────────────
@@ -254,15 +329,25 @@ def extract_trigger_keywords(text: str) -> list:
 def _review_ts_naive_utc(r: dict) -> datetime | None:
     ts = r.get("timestamp")
     if isinstance(ts, datetime):
+        if ts.tzinfo is not None:
+            return ts.astimezone(timezone.utc).replace(tzinfo=None)
         return ts
     if isinstance(ts, str) and len(ts) >= 10:
-        s = ts.replace("Z", "").strip()
-        if " " in s and "T" not in s:
+        s = ts.strip()
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        if " " in s and "T" not in s.split(" ")[0]:
             s = s.replace(" ", "T", 1)
         try:
-            return datetime.fromisoformat(s[:19])
+            dt = datetime.fromisoformat(s)
         except ValueError:
-            return None
+            try:
+                dt = datetime.fromisoformat(s[:19])
+            except ValueError:
+                return None
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+        return dt
     return None
 
 
@@ -277,17 +362,47 @@ def filter_reviews_by_recent_days(reviews: list, days: int = 30) -> list:
     return out
 
 
+def filter_reviews_in_utc_calendar_days(
+    reviews: list, days: int = 30, *, end_date=None
+) -> list:
+    """
+    Keep reviews whose UTC calendar date falls in [end-(days-1), end] inclusive.
+    Matches get_sentiment_trend's day buckets so all 30 days align on the chart.
+    """
+    end = end_date or datetime.utcnow().date()
+    start = end - timedelta(days=days - 1)
+    out = []
+    for r in reviews:
+        dt = _review_ts_naive_utc(r)
+        if dt is None:
+            continue
+        rd = dt.date()
+        if start <= rd <= end:
+            out.append(r)
+    return out
+
+
 async def maybe_refresh_lifetime_from_steamspy(app_id: str, gd: dict, sample_count: int) -> bool:
     """
     If stored lifetime totals look missing or equal to the in-app sample (common ETL bug),
-    replace with SteamSpy all-time totals. Returns True if gd was updated.
+    replace with Steam query_summary, then SteamSpy. Returns True if gd was updated.
     """
     lt = int(gd.get("total_reviews") or 0)
     needs = (lt == 0) or (sample_count > 0 and lt == sample_count)
     if not needs:
         return False
     async with httpx.AsyncClient() as client:
-        spy = await _steamspy_detail(app_id, client)
+        steam = await fetch_steam_review_summary(str(app_id), client)
+        if steam and int(steam.get("total_reviews") or 0) > 0:
+            st = int(steam["total_reviews"])
+            if lt > 0 and st <= lt:
+                return False
+            gd["total_reviews"] = st
+            gd["positive_reviews"] = int(steam["positive_reviews"] or 0)
+            gd["negative_reviews"] = int(steam["negative_reviews"] or 0)
+            gd["rating"] = float(steam.get("rating") or 0)
+            return True
+        spy = await _steamspy_detail(str(app_id), client)
     if not spy:
         return False
     st = int(spy.get("total_reviews") or 0)
@@ -309,9 +424,9 @@ def get_keyword_stats(reviews: list) -> dict:
             c[kw] += 1
     return dict(c.most_common(15))
 
-def get_sentiment_trend(reviews: list, days: int = 30) -> list:
+def get_sentiment_trend(reviews: list, days: int = 30, *, end_date=None) -> list:
     """One row per calendar day for the last `days` days (UTC), even if a day has no reviews."""
-    end = datetime.utcnow().date()
+    end = end_date or datetime.utcnow().date()
     start = end - timedelta(days=days - 1)
     day_list: list[str] = []
     d = start
@@ -361,38 +476,6 @@ def get_hours_distribution(reviews: list) -> dict:
             neg[b] += 1
     return {"labels": order, "positive": [pos[k] for k in order], "negative": [neg[k] for k in order]}
 
-def get_heatmap_data(reviews: list, days: int = 30) -> dict:
-    hour_labels = ["0-1h", "1-10h", "10-50h", "50-200h", "200h+"]
-    def bkt(h):
-        h = float(h or 0)
-        if h < 1:   return 0
-        if h < 10:  return 1
-        if h < 50:  return 2
-        if h < 200: return 3
-        return 4
-    end = datetime.utcnow().date()
-    start = end - timedelta(days=days - 1)
-    days_set = []
-    d = start
-    while d <= end:
-        days_set.append(d.isoformat())
-        d += timedelta(days=1)
-    if not days_set:
-        return {"x": [], "y": hour_labels, "z": [[] for _ in range(5)]}
-    grid = {day: [0] * 5 for day in days_set}
-    for r in reviews:
-        dt = _review_ts_naive_utc(r)
-        if not dt:
-            continue
-        day = dt.date().isoformat()
-        if day in grid:
-            grid[day][bkt(r.get("hours_played", 0))] += 1
-    return {
-        "x": days_set,
-        "y": hour_labels,
-        "z": [[grid[d][i] for d in days_set] for i in range(5)]
-    }
-
 def get_scatter_data(reviews: list) -> list:
     """Sentiment vs hours played scatter — sampled to 300 points."""
     pts = [{"x": float(r.get("hours_played") or 0),
@@ -408,22 +491,30 @@ def get_scatter_data(reviews: list) -> list:
 
 async def run_etl(app_id: str, db) -> dict:
     from database import Game, Review
+    app_id = str(app_id).strip()
     async with httpx.AsyncClient() as client:
         game_data   = await fetch_game_details(app_id, client)
         if not game_data:
             return {"error": "Game not found"}
-        # Store page keeps review totals at 0 often — fill lifetime stats from SteamSpy
+        # Store page often omits review totals — Steam query_summary first, then SteamSpy
         tr = int(game_data.get("total_reviews") or 0)
         if tr == 0 and int(game_data.get("positive_reviews") or 0) + int(game_data.get("negative_reviews") or 0) == 0:
-            spy = await _steamspy_detail(app_id, client)
-            if spy:
-                game_data["total_reviews"] = int(spy.get("total_reviews") or 0)
-                game_data["positive_reviews"] = int(spy.get("positive_reviews") or 0)
-                game_data["negative_reviews"] = int(spy.get("negative_reviews") or 0)
-                game_data["rating"] = float(spy.get("rating") or 0)
-                for fld in ("developer", "publisher", "genre"):
-                    if spy.get(fld) and not game_data.get(fld):
-                        game_data[fld] = spy[fld]
+            steam = await fetch_steam_review_summary(app_id, client)
+            if steam and int(steam.get("total_reviews") or 0) > 0:
+                game_data["total_reviews"] = steam["total_reviews"]
+                game_data["positive_reviews"] = steam["positive_reviews"]
+                game_data["negative_reviews"] = steam["negative_reviews"]
+                game_data["rating"] = float(steam.get("rating") or 0)
+            else:
+                spy = await _steamspy_detail(app_id, client)
+                if spy:
+                    game_data["total_reviews"] = int(spy.get("total_reviews") or 0)
+                    game_data["positive_reviews"] = int(spy.get("positive_reviews") or 0)
+                    game_data["negative_reviews"] = int(spy.get("negative_reviews") or 0)
+                    game_data["rating"] = float(spy.get("rating") or 0)
+                    for fld in ("developer", "publisher", "genre"):
+                        if spy.get(fld) and not game_data.get(fld):
+                            game_data[fld] = spy[fld]
         raw_reviews = await fetch_reviews(app_id, client)
 
     pos = neg = flagged = 0

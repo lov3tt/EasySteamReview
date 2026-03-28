@@ -367,7 +367,7 @@ nav{position:sticky;top:0;z-index:200;background:rgba(8,12,20,.9);
 // ═══════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ═══════════════════════════════════════════════════════════════════════════
-const APP_ID = "{{ app_id }}";
+const APP_ID = {{ (app_id or '') | tojson }};
 let analyticsData = null;
 let gameData = null;
 let chartsBuilt = false;
@@ -415,7 +415,7 @@ async function init() {
 // ── Game info (header) ────────────────────────────────────────────────────────
 async function loadGameInfo() {
   try {
-    const res = await fetch(`/api/games/${APP_ID}`);
+    const res = await fetch(`/api/games/${encodeURIComponent(APP_ID)}`);
     gameData = await res.json();
     if (!gameData || !gameData.name) return;
     document.getElementById('navName').textContent = gameData.name;
@@ -439,7 +439,7 @@ async function loadGameInfo() {
 // ── ETL orchestration ─────────────────────────────────────────────────────────
 async function checkEtlStatus() {
   try {
-    const res = await fetch(`/api/etl/${APP_ID}/status`);
+    const res = await fetch(`/api/etl/${encodeURIComponent(APP_ID)}/status`);
     const d   = await res.json();
     return d.status; // 'idle' | 'running' | 'complete' | 'error'
   } catch(e) { return 'idle'; }
@@ -447,7 +447,7 @@ async function checkEtlStatus() {
 
 async function startEtl() {
   try {
-    await fetch(`/api/etl/${APP_ID}`, { method: 'POST' });
+    await fetch(`/api/etl/${encodeURIComponent(APP_ID)}`, { method: 'POST' });
   } catch(e) {}
   setEtlBar('running', 'Analyzing reviews with NLP sentiment engine…');
   pollEtl();
@@ -459,7 +459,7 @@ function pollEtl() {
   etlPollTimer = setInterval(async () => {
     attempts++;
     try {
-      const res = await fetch(`/api/etl/${APP_ID}/status`);
+      const res = await fetch(`/api/etl/${encodeURIComponent(APP_ID)}/status`);
       const d   = await res.json();
       if (d.status === 'complete') {
         clearInterval(etlPollTimer);
@@ -508,12 +508,23 @@ function hideEtlBar() {
 // ANALYTICS
 // ═══════════════════════════════════════════════════════════════════════════
 async function loadAnalytics() {
+  chartsBuilt = false;
   try {
-    const res = await fetch(`/api/analytics/${APP_ID}`);
+    const res = await fetch(`/api/analytics/${encodeURIComponent(APP_ID)}`);
     analyticsData = await res.json();
     if (analyticsData.error) {
       updateSampleStats({ total: 0, positive_pct: 0, negative_pct: 0, flagged: 0 });
-      updateCompareStrip(null, null);
+      if (analyticsData.lifetime && Object.keys(analyticsData.lifetime).length) {
+        fillLifetimeCards(analyticsData.lifetime);
+      } else if (analyticsData.game && analyticsData.game.name) {
+        fillLifetimeFromGame(analyticsData.game);
+      }
+      if (analyticsData.game && analyticsData.game.name) {
+        gameData = { ...(gameData || {}), ...analyticsData.game };
+        renderDetails(gameData);
+      }
+      renderKwSummary(analyticsData.keyword_stats || {});
+      updateCompareStrip(null, analyticsData.meta || null);
       return;
     }
     const s = analyticsData.summary;
@@ -538,17 +549,24 @@ async function loadAnalytics() {
 
 function fillLifetimeCards(L) {
   if (!L) return;
-  if (L.total_reviews > 0) {
-    document.getElementById('sLifeTotal').textContent = Number(L.total_reviews).toLocaleString();
-  }
-  const posP = L.overall_positive_pct != null ? L.overall_positive_pct : L.rating_pct;
-  if (posP != null && !Number.isNaN(Number(posP))) {
-    document.getElementById('sLifeRating').textContent = Number(posP).toFixed(1) + '%';
-  }
-  if (L.overall_negative_pct != null && L.overall_negative_pct >= 0) {
-    document.getElementById('sLifeNegRating').textContent = Number(L.overall_negative_pct).toFixed(1) + '%';
-  } else if (posP != null && !Number.isNaN(Number(posP))) {
-    document.getElementById('sLifeNegRating').textContent = (100 - Number(posP)).toFixed(1) + '%';
+  const tr = Number(L.total_reviews) || 0;
+  document.getElementById('sLifeTotal').textContent = tr > 0 ? tr.toLocaleString() : '—';
+
+  if (tr > 0 && L.overall_positive_pct != null && !Number.isNaN(Number(L.overall_positive_pct))) {
+    const posP = Number(L.overall_positive_pct);
+    document.getElementById('sLifeRating').textContent = posP.toFixed(1) + '%';
+    const negP =
+      L.overall_negative_pct != null && !Number.isNaN(Number(L.overall_negative_pct))
+        ? Number(L.overall_negative_pct)
+        : 100 - posP;
+    document.getElementById('sLifeNegRating').textContent = negP.toFixed(1) + '%';
+  } else if (L.rating_pct != null && L.rating_pct > 0 && tr === 0) {
+    const r = Number(L.rating_pct);
+    document.getElementById('sLifeRating').textContent = r.toFixed(1) + '%';
+    document.getElementById('sLifeNegRating').textContent = (100 - r).toFixed(1) + '%';
+  } else {
+    document.getElementById('sLifeRating').textContent = '—';
+    document.getElementById('sLifeNegRating').textContent = '—';
   }
 }
 
@@ -626,7 +644,7 @@ async function loadReviews(filter, page) {
     <span style="color:var(--muted);font-size:.82rem;">Loading ${filter} reviews...</span></div>`;
 
   try {
-    const res  = await fetch(`/api/reviews/${APP_ID}?filter=${filter}&sort=${sort}&page=${page}`);
+    const res  = await fetch(`/api/reviews/${encodeURIComponent(APP_ID)}?filter=${filter}&sort=${sort}&page=${page}`);
     const data = await res.json();
     if (!data.reviews || data.reviews.length === 0) {
       listEl.innerHTML = `<div class="center-msg">
@@ -719,7 +737,7 @@ function renderKwSummary(stats) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// CHARTS  — all 5 fully working with Plotly
+// CHARTS — 3 analytics charts (Plotly)
 // ═══════════════════════════════════════════════════════════════════════════
 function buildCharts(data) {
   if (!data || data.error) {
@@ -752,11 +770,11 @@ function buildCharts(data) {
   const ru = meta.reviews_used != null ? meta.reviews_used : '—';
   const cr = meta.chart_reviews_used != null ? meta.chart_reviews_used : '—';
   const analyticsNote =
-    '<div class="analytics-note">The <strong>trend, playtime, keyword, and scatter</strong> charts include only reviews with timestamps in the <code>last 30 calendar days (UTC)</code> — <code>' +
+    '<div class="analytics-note">These <strong>three</strong> charts use only reviews with timestamps in the <code>last 30 calendar days (UTC)</code> — <code>' +
     cr +
     '</code> reviews qualify from your fetched set of <code>' +
     ru +
-    '</code> (max <code>800</code>). The heatmap uses the same 30-day calendar grid. Steam store cards above use <strong>full lifetime</strong> totals from Steam / SteamSpy, not the 800 cap.</div>';
+    '</code> (max <code>800</code>). Steam store cards above use <strong>full lifetime</strong> totals from Steam / SteamSpy, not the 800 cap.</div>';
 
   document.getElementById('analyticsContent').innerHTML =
     analyticsNote +
@@ -776,21 +794,9 @@ function buildCharts(data) {
       </div>
 
       <div class="chart-box">
-        <div class="chart-title">🚩 Last 30 days — flagged keywords</div>
-        <div class="chart-sub">Keyword hits counted only within the same 30-day window (cheating, crashes, refunds, etc.)</div>
-        <div class="chart-wrap" id="ch-kw"></div>
-      </div>
-
-      <div class="chart-box">
         <div class="chart-title">🔬 Last 30 days — NLP vs playtime</div>
         <div class="chart-sub">Each point is one in-window review: sentiment vs hours played (log axis)</div>
         <div class="chart-wrap" id="ch-scatter"></div>
-      </div>
-
-      <div class="chart-box">
-        <div class="chart-title">🗓 Last 30 calendar days — activity heatmap</div>
-        <div class="chart-sub">Fixed UTC date range (30 days) × playtime bucket; only in-window reviews contribute</div>
-        <div class="chart-wrap" id="ch-heat"></div>
       </div>
 
     </div>`;
@@ -798,13 +804,19 @@ function buildCharts(data) {
   // ── Chart 1: Sentiment Trend ───────────────────────────────────────────────
   const trend = data.sentiment_trend || [];
   if (trend.length > 0) {
-    const dates = trend.map(d => d.date);
+    const dates = trend.map(d => d.date).filter(Boolean);
+    if (!dates.length) {
+      document.getElementById('ch-trend').innerHTML =
+        '<div class="center-msg"><span style="color:var(--muted);">Not enough date data</span></div>';
+    } else {
+    try {
     Plotly.newPlot('ch-trend', [
       {
         x: dates, y: trend.map(d => d.avg_sentiment),
         name: 'Avg Sentiment', type: 'scatter', mode: 'lines+markers',
-        line: { color: '#00c8f0', width: 2.5, shape: 'spline' },
+        line: { color: '#00c8f0', width: 2.5, shape: 'linear' },
         marker: { size: 5, color: '#00c8f0' },
+        connectgaps: true,
         yaxis: 'y'
       },
       {
@@ -823,9 +835,23 @@ function buildCharts(data) {
       yaxis:  { ...baseLayout.yaxis, title: 'NLP sentiment', range: [-1.1, 1.1], tickformat: '.2f' },
       yaxis2: { overlaying: 'y', side: 'right', title: 'Review Count',
                 gridcolor: 'transparent', tickfont: font },
-      xaxis:  { ...baseLayout.xaxis, title: 'Date (UTC · last 30 days)', tickangle: -35 },
+      xaxis:  {
+        ...baseLayout.xaxis,
+        type: 'category',
+        categoryorder: 'array',
+        categoryarray: dates,
+        title: 'Date (UTC · last 30 days)',
+        tickangle: -35,
+        showgrid: true
+      },
       height: 300
     }, cfg);
+    } catch (e) {
+      console.error('ch-trend', e);
+      document.getElementById('ch-trend').innerHTML =
+        '<div class="center-msg"><span style="color:var(--muted);">Chart could not render. Try Refresh or another browser.</span></div>';
+    }
+    }
   } else {
     document.getElementById('ch-trend').innerHTML =
       '<div class="center-msg"><span style="color:var(--muted);">Not enough date data</span></div>';
@@ -845,32 +871,7 @@ function buildCharts(data) {
       '<div class="center-msg"><span style="color:var(--muted);">No hours data</span></div>';
   }
 
-  // ── Chart 3: Keyword Bar Chart ─────────────────────────────────────────────
-  const ks = data.keyword_stats || {};
-  const kwEntries = Object.entries(ks).sort((a, b) => b[1] - a[1]).slice(0, 12);
-  if (kwEntries.length > 0) {
-    const colors = kwEntries.map(([k]) => kwColor(k));
-    Plotly.newPlot('ch-kw', [{
-      x: kwEntries.map(e => e[1]),
-      y: kwEntries.map(e => e[0]),
-      type: 'bar', orientation: 'h',
-      marker: { color: colors },
-      text: kwEntries.map(e => e[1]),
-      textposition: 'outside',
-      textfont: { color: txt, size: 11 }
-    }], {
-      ...baseLayout,
-      height: 270,
-      margin: { ...baseLayout.margin, l: 100 },
-      xaxis: { ...baseLayout.xaxis, title: 'Occurrences' },
-      yaxis: { ...baseLayout.yaxis, autorange: 'reversed' }
-    }, cfg);
-  } else {
-    document.getElementById('ch-kw').innerHTML =
-      '<div class="center-msg"><span style="color:var(--muted);">No flagged keywords found</span></div>';
-  }
-
-  // ── Chart 4: Scatter — Sentiment vs Hours ──────────────────────────────────
+  // ── Chart 3: Scatter — Sentiment vs Hours ──────────────────────────────────
   const scatter = data.scatter || [];
   if (scatter.length > 0) {
     const posP = scatter.filter(p => p.pos);
@@ -897,29 +898,6 @@ function buildCharts(data) {
       '<div class="center-msg"><span style="color:var(--muted);">No scatter data available</span></div>';
   }
 
-  // ── Chart 5: Heatmap ───────────────────────────────────────────────────────
-  const hm = data.heatmap || { x: [], y: [], z: [] };
-  if (hm.x && hm.x.length > 0 && hm.z && hm.z.length > 0) {
-    Plotly.newPlot('ch-heat', [{
-      x: hm.x, y: hm.y, z: hm.z,
-      type: 'heatmap',
-      colorscale: dark ? [
-        [0, '#0f1923'], [0.25, '#1e3558'], [0.5, '#0080a0'],
-        [0.75, '#00c8f0'], [1, '#ffffff']
-      ] : 'Blues',
-      showscale: true,
-      colorbar: { tickfont: { color: txt, size: 10 } }
-    }], {
-      ...baseLayout,
-      height: 270,
-      margin: { ...baseLayout.margin, l: 80 },
-      xaxis: { ...baseLayout.xaxis, title: 'Date' },
-      yaxis: { ...baseLayout.yaxis, title: 'Hours Bucket', autorange: 'reversed' }
-    }, cfg);
-  } else {
-    document.getElementById('ch-heat').innerHTML =
-      '<div class="center-msg"><span style="color:var(--muted);">Not enough data for heatmap</span></div>';
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1003,10 +981,9 @@ function switchTab(name, el) {
   document.getElementById(`pane-${name}`).classList.add('active');
   activeTab = name;
 
-  if (name === 'analytics') {
-    if (!chartsBuilt && analyticsData && !analyticsData.error) {
-      buildCharts(analyticsData);
-    }
+  if (name === 'analytics' && analyticsData && !analyticsData.error) {
+    chartsBuilt = false;
+    buildCharts(analyticsData);
   }
   if (name === 'negative' && !document.getElementById('list-negative').children.length) {
     loadReviews('negative');

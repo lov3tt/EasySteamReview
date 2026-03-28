@@ -43,6 +43,14 @@ app.add_middleware(
 BASE = Path(__file__).parent
 templates = Jinja2Templates(directory=str(BASE / "templates"))
 
+
+def _norm_app_id(app_id: str | int | None) -> str:
+    """Steam app id as trimmed string (search vs grid must match DB keys)."""
+    if app_id is None:
+        return ""
+    return str(app_id).strip()
+
+
 # In-memory tracking for ETL jobs
 _etl_running: dict[str, bool] = {}
 _etl_results: dict[str, dict] = {}
@@ -57,9 +65,9 @@ async def homepage(request: Request):
 @app.get("/dashboard/{app_id}", response_class=HTMLResponse)
 async def dashboard(request: Request, app_id: str):
     return templates.TemplateResponse(
-        request=request, 
-        name="dashboard.html", 
-        context={"app_id": app_id}
+        request=request,
+        name="dashboard.html",
+        context={"app_id": _norm_app_id(app_id)},
     )
 
 # ── Games API ──────────────────────────────────────────────────────────────────
@@ -89,22 +97,26 @@ async def search_games(q: str = ""):
 
 @app.get("/api/games/{app_id}")
 async def game_detail(app_id: str, db: Session = Depends(get_db)):
-    g = db.query(Game).filter(Game.app_id == str(app_id)).first()
+    app_id = _norm_app_id(app_id)
+    g = db.query(Game).filter(Game.app_id == app_id).first()
     if g and g.name:
-        return _gd(g)
-    
+        gd = dict(_gd(g))
+        await eng.merge_lifetime_stats_if_missing(app_id, gd)
+        return gd
+
     import httpx
     async with httpx.AsyncClient() as client:
-        d = await eng.fetch_game_details(str(app_id), client)
+        d = await eng.fetch_game_details(app_id, client)
     if not d or not d.get("name"):
         raise HTTPException(404, "Game not found")
+    await eng.merge_lifetime_stats_if_missing(app_id, d)
     return d
 
 # ── ETL API ────────────────────────────────────────────────────────────────────
 
 @app.post("/api/etl/{app_id}")
 async def start_etl(app_id: str, background_tasks: BackgroundTasks):
-    app_id = str(app_id)
+    app_id = _norm_app_id(app_id)
     if _etl_running.get(app_id):
         return {"status": "already_running", "app_id": app_id}
     
@@ -115,7 +127,7 @@ async def start_etl(app_id: str, background_tasks: BackgroundTasks):
 
 @app.get("/api/etl/{app_id}/status")
 async def etl_status(app_id: str, db: Session = Depends(get_db)):
-    app_id = str(app_id)
+    app_id = _norm_app_id(app_id)
     if _etl_running.get(app_id):
         return {"status": "running"}
     
@@ -138,6 +150,7 @@ async def etl_status(app_id: str, db: Session = Depends(get_db)):
     return {"status": "idle"}
 
 async def _etl_task(app_id: str):
+    app_id = _norm_app_id(app_id)
     db = SessionLocal()
     try:
         result = await eng.run_etl(app_id, db)
@@ -153,7 +166,8 @@ async def _etl_task(app_id: str):
 @app.get("/api/reviews/{app_id}")
 async def get_reviews(app_id: str, filter: str = "all", sort: str = "recent",
                       page: int = 1, db: Session = Depends(get_db)):
-    q = db.query(Review).filter(Review.game_id == str(app_id))
+    app_id = _norm_app_id(app_id)
+    q = db.query(Review).filter(Review.game_id == app_id)
     
     if filter == "positive":
         q = q.filter(Review.is_positive == True)
@@ -186,14 +200,64 @@ async def get_reviews(app_id: str, filter: str = "all", sort: str = "recent",
 
 # ── Analytics API ──────────────────────────────────────────────────────────────
 
+def _lifetime_payload(gd: dict) -> dict:
+    if not gd:
+        return {}
+    lt_total = int(gd.get("total_reviews") or 0)
+    lt_pos = int(gd.get("positive_reviews") or 0)
+    lt_neg = int(gd.get("negative_reviews") or 0)
+    if lt_total <= 0 and lt_pos + lt_neg > 0:
+        lt_total = lt_pos + lt_neg
+
+    life_rating = float(gd.get("rating") or 0)
+    overall_pos_pct = overall_neg_pct = None
+    rating_pct_out = None
+
+    if lt_total > 0:
+        overall_pos_pct = round(lt_pos / lt_total * 100, 1)
+        overall_neg_pct = round(lt_neg / lt_total * 100, 1)
+        if life_rating <= 0:
+            life_rating = overall_pos_pct
+        rating_pct_out = round(life_rating, 1)
+    elif life_rating > 0:
+        overall_pos_pct = round(life_rating, 1)
+        overall_neg_pct = round(100 - life_rating, 1)
+        rating_pct_out = round(life_rating, 1)
+
+    return {
+        "total_reviews": lt_total,
+        "positive_reviews": lt_pos,
+        "negative_reviews": lt_neg,
+        "rating_pct": rating_pct_out,
+        "overall_positive_pct": overall_pos_pct,
+        "overall_negative_pct": overall_neg_pct,
+    }
+
+
 @app.get("/api/analytics/{app_id}")
 async def get_analytics(app_id: str, db: Session = Depends(get_db)):
-    app_id = str(app_id)
+    app_id = _norm_app_id(app_id)
     reviews = db.query(Review).filter(Review.game_id == app_id).all()
     game = db.query(Game).filter(Game.app_id == app_id).first()
 
     if not reviews:
-        return {"error": "no_data", "game": _gd(game) if game else {}}
+        gd: dict = {}
+        if game and game.name:
+            gd = dict(_gd(game))
+            await eng.merge_lifetime_stats_if_missing(app_id, gd)
+        else:
+            import httpx
+            async with httpx.AsyncClient() as client:
+                fd = await eng.fetch_game_details(app_id, client)
+            if fd:
+                gd = dict(fd)
+                await eng.merge_lifetime_stats_if_missing(app_id, gd)
+        return {
+            "error": "no_data",
+            "game": gd,
+            "lifetime": _lifetime_payload(gd),
+            "keyword_stats": {},
+        }
 
     rev_list = [_rd(r) for r in reviews]
     gd = dict(_gd(game)) if game else {}
@@ -207,24 +271,15 @@ async def get_analytics(app_id: str, db: Session = Depends(get_db)):
             game.rating = gd["rating"]
             db.commit()
 
-    lt_total = int(gd.get("total_reviews") or 0)
-    lt_pos = int(gd.get("positive_reviews") or 0)
-    lt_neg = int(gd.get("negative_reviews") or 0)
-    if lt_total <= 0 and lt_pos + lt_neg > 0:
-        lt_total = lt_pos + lt_neg
+    lifetime_out = _lifetime_payload(gd)
+    life_rating = float(lifetime_out.get("rating_pct") or 0)
+    if life_rating <= 0 and lifetime_out.get("overall_positive_pct") is not None:
+        life_rating = float(lifetime_out["overall_positive_pct"])
 
-    life_rating = float(gd.get("rating") or 0)
-    overall_pos_pct = overall_neg_pct = None
-    if lt_total > 0:
-        overall_pos_pct = round(lt_pos / lt_total * 100, 1)
-        overall_neg_pct = round(lt_neg / lt_total * 100, 1)
-        if life_rating <= 0:
-            life_rating = overall_pos_pct
-    elif life_rating > 0:
-        overall_pos_pct = round(life_rating, 1)
-        overall_neg_pct = round(100 - life_rating, 1)
-
-    rev_30d = eng.filter_reviews_by_recent_days(rev_list, 30)
+    chart_end = datetime.utcnow().date()
+    rev_chart = eng.filter_reviews_in_utc_calendar_days(
+        rev_list, 30, end_date=chart_end
+    )
 
     pos = sum(1 for r in reviews if r.is_positive)
     neg = len(reviews) - pos
@@ -244,17 +299,10 @@ async def get_analytics(app_id: str, db: Session = Depends(get_db)):
             "max_reviews": 800,
             "reviews_used": len(reviews),
             "chart_window_days": 30,
-            "chart_reviews_used": len(rev_30d),
+            "chart_reviews_used": len(rev_chart),
             "description": "Charts use only reviews from the last 30 calendar days (UTC). The dashboard sample is up to 800 recent English reviews; Steam store cards use all-time totals.",
         },
-        "lifetime": {
-            "total_reviews": lt_total,
-            "positive_reviews": lt_pos,
-            "negative_reviews": lt_neg,
-            "rating_pct": round(life_rating, 1) if life_rating else 0.0,
-            "overall_positive_pct": overall_pos_pct,
-            "overall_negative_pct": overall_neg_pct,
-        },
+        "lifetime": lifetime_out,
         "summary": {
             "total": len(reviews),
             "positive": pos,
@@ -270,11 +318,10 @@ async def get_analytics(app_id: str, db: Session = Depends(get_db)):
             "lifetime_rating_pct": round(life_rating, 1) if life_rating else None,
             "rating_delta_pct": rating_delta,
         },
-        "sentiment_trend": eng.get_sentiment_trend(rev_30d, 30),
-        "hours_distribution": eng.get_hours_distribution(rev_30d),
-        "keyword_stats": eng.get_keyword_stats(rev_30d),
-        "heatmap": eng.get_heatmap_data(rev_30d, 30),
-        "scatter": eng.get_scatter_data(rev_30d),
+        "sentiment_trend": eng.get_sentiment_trend(rev_chart, 30, end_date=chart_end),
+        "hours_distribution": eng.get_hours_distribution(rev_chart),
+        "keyword_stats": eng.get_keyword_stats(rev_chart),
+        "scatter": eng.get_scatter_data(rev_chart),
         "game": gd,
     }
 
