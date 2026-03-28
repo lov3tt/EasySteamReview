@@ -57,7 +57,8 @@ The gaming analytics market is highly competitive, with various tools and platfo
 #### 3. **Dashboard Features:**
    - **Keyword Tracking:** A dashboard view showing the frequency of cheating/moderation-related keywords over time.
    - **Automatic ETL** Automatically run ETL for the game when clicked up and an option to refresh & repopulated the ETL model with the Refresh button on top right.
-<img width="1517" height="596" alt="Screenshot 2026-03-28 175035" src="https://github.com/user-attachments/assets/8dd5fbdc-2f3f-4205-be15-9b2b89b2fcb4" />
+<img width="1847" height="895" alt="Screenshot 2026-03-28 175115" src="https://github.com/user-attachments/assets/4c14290e-6dab-4162-bde2-c76ee25fb5b5" />
+
 
    - **Sentiment Analysis:** Analyze the sentiment of reviews mentioning cheating or moderation to understand player frustration or satisfaction.
    - **Case Tracking:** Allow users to click on specific keyword mentions and view the full review for context.
