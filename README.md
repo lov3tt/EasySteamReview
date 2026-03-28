@@ -1,5 +1,6 @@
 # EasySteamReview
 A Data Analyst Tool to see review of games through the Steam Store within the scope of 30 days, picking up on keywords involve cheating, hacking, scamming and other to see the game credibility and stability.
+<img width="1884" height="897" alt="Screenshot 2026-03-27 225311" src="https://github.com/user-attachments/assets/1ee2a35e-8579-40b5-a104-b5bc1b322763" />
 
 ### Project Scope: Player Review Analysis Dashboard for Cheating and Moderation Insights
 
@@ -8,6 +9,7 @@ The gaming industry has grown exponentially over the past decade, with millions 
 
 **Objective:**  
 The objective is to build a tool that analyzes player reviews from the Steam platform to identify trends, sentiment, and specific mentions related to cheating and moderation. This tool will provide developers, game publishers, and moderators with actionable insights to improve their games and communities.
+<img width="1864" height="759" alt="Screenshot 2026-03-27 225338" src="https://github.com/user-attachments/assets/56622e84-a405-44d1-a9fa-19bee6d7dd81" />
 
 ---
 
@@ -92,3 +94,4 @@ The gaming analytics market is highly competitive, with various tools and platfo
 ### Conclusion
 
 This project aims to address a critical gap in the gaming analytics space by providing developers, publishers, and moderators with insights into cheating and moderation-related issues through player reviews. By leveraging APIs, NLP techniques, and visualization tools, this dashboard will offer actionable insights that can help improve game communities and player experiences.
+<img width="1868" height="796" alt="Screenshot 2026-03-27 225504" src="https://github.com/user-attachments/assets/79893c16-f650-4986-9007-84322165463b" />
