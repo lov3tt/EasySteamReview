@@ -1,6 +1,7 @@
 # EasySteamReview
-A Data Analyst Tool to see review of games through the Steam Store within the scope of 30 days and up to 800 of the most recent reviews., picking up on keywords involve cheating, hacking, scamming and other to see the game credibility and stability.
-<img width="1890" height="895" alt="Screenshot 2026-03-28 005347" src="https://github.com/user-attachments/assets/a05e4774-25b8-449c-a0a3-4dd509169a81" />
+A Data Analyst Tool to see review of games through the Steam Store within the scope of 30 days and up to 800 of the most recent reviews., picking up on keywords involve cheating, hacking, scamming and other to see the game ranking for this Month.
+
+<img width="1513" height="822" alt="Screenshot 2026-03-28 034206" src="https://github.com/user-attachments/assets/c487421e-7777-4c3f-a3de-dc031240da3a" />
 
 
 ### Project Scope: Player Review Analysis Dashboard for Cheating and Moderation Insights
@@ -10,7 +11,8 @@ The gaming industry has grown exponentially over the past decade, with millions 
 
 **Objective:**  
 The objective is to build a tool that analyzes player reviews from the Steam platform to identify trends, sentiment, and specific mentions related to cheating and moderation. This tool will provide developers, game publishers, and moderators with actionable insights to improve their games and communities.
-<img width="1864" height="759" alt="Screenshot 2026-03-27 225338" src="https://github.com/user-attachments/assets/56622e84-a405-44d1-a9fa-19bee6d7dd81" />
+
+<img width="1826" height="795" alt="Screenshot 2026-03-28 034239" src="https://github.com/user-attachments/assets/b0b8a842-aa5f-4c90-a677-2a9dc2791ea8" />
 
 ---
 
@@ -91,8 +93,9 @@ The gaming analytics market is highly competitive, with various tools and platfo
    - Run START_EasySteamReview.bat and it'll automatically set up the venv and intall all the Library needed to run in the Requirements.txt and launch locally on your browser.
 
 ---
+<img width="1800" height="817" alt="Screenshot 2026-03-28 034323" src="https://github.com/user-attachments/assets/a872649c-2fdc-4711-aca4-16058476456b" />
 
 ### Conclusion
 
 This project aims to address a critical gap in the gaming analytics space by providing developers, publishers, and moderators with insights into cheating and moderation-related issues through player reviews. By leveraging APIs, NLP techniques, and visualization tools, this dashboard will offer actionable insights that can help improve game communities and player experiences.
-<img width="1868" height="796" alt="Screenshot 2026-03-27 225504" src="https://github.com/user-attachments/assets/79893c16-f650-4986-9007-84322165463b" />
+
