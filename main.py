@@ -11,6 +11,29 @@ from sqlalchemy.orm import Session
 from database import init_db, get_db, Game, Review, SessionLocal
 import engine as eng
 
+# ---Cor Proxy---
+
+import os
+from dotenv import load_dotenv # pip install python-dotenv
+from fastapi.middleware.cors import CORSMiddleware
+# ... your existing imports (asyncio, datetime, etc.)
+
+# Load environment: defaults to '.env.local'
+app_mode = os.getenv("APP_MODE", "local")
+load_dotenv(f".env.{app_mode}")
+
+app = FastAPI()
+
+# Configure CORS so your Proxy or Local Frontend can talk to the API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[os.getenv("CORS_ORIGIN", "*")], 
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+# ---End Cor Proxy---
+
 # --- Lifespan Management ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -228,7 +251,25 @@ def _rd(r: Review) -> dict:
         "hours_played": float(r.hours_played or 0), "trigger_keywords": kw or [],
         "votes_up": int(r.votes_up or 0),
     }
+#Original
+#if __name__ == "__main__":
+ #   import uvicorn
+  #  uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
 
+#--- Cor Proxy Entry Point ---
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    
+    # Get settings from your .env file
+    host = os.getenv("HOST", "127.0.0.1")
+    port = int(os.getenv("PORT", 8000))
+    reload_mode = (app_mode == "local") # Auto-reload only when local
+
+    print(f"--- Starting in {app_mode} mode on {host}:{port} ---")
+    
+    uvicorn.run(
+        "main:app", # Assumes your file is named main.py
+        host=host, 
+        port=port, 
+        reload=reload_mode
+    )
