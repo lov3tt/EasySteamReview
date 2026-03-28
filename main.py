@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from database import init_db, get_db, Game, Review, SessionLocal
@@ -21,7 +22,11 @@ from fastapi.middleware.cors import CORSMiddleware
 # Load environment: defaults to '.env.local'
 app_mode = os.getenv("APP_MODE", "local")
 load_dotenv(f".env.{app_mode}")
+# 2. ALSO call basic load_dotenv() to catch any standard .env files
+load_dotenv() 
 
+# 3. Now the system will check the Render Dashboard Variables if the file is missing
+api_key = os.getenv("OPENROUTER_API_KEY")
 # --- Lifespan Management ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -197,6 +202,113 @@ async def get_reviews(app_id: str, filter: str = "all", sort: str = "recent",
         "pages": max(1, (total + per_page - 1) // per_page),
         "reviews": [_rd(r) for r in items],
     }
+
+# ── AI Report API ─────────────────────────────────────────────────────────────
+
+class AIReportRequest(BaseModel):
+    game_name:  str
+    lt_pos:     float
+    lt_neg:     float
+    lt_total:   int
+    sm_pos:     float
+    sm_neg:     float
+    sm_total:   int
+    sm_flagged: int
+    pos_excerpts:  list[str]
+    neg_excerpts:  list[str]
+    flag_excerpts: list[str]
+
+@app.post("/api/ai-report/{app_id}")
+async def ai_report(app_id: str, req: AIReportRequest):
+    """Call OpenRouter / Nemotron and return a structured two-section analysis."""
+    import httpx as _httpx
+
+    api_key = os.getenv("OPENROUTER_API_KEY", "")
+    if not api_key:
+        raise HTTPException(500, "OPENROUTER_API_KEY not set in environment.")
+
+    delta      = round(req.sm_pos - req.lt_pos, 1)
+    delta_str  = (f"+{delta}" if delta > 0 else str(delta)) + "%"
+    sample_higher = delta > 0
+
+    pos_block  = "\n".join(f'[Pos {i+1}] "{t}"'  for i, t in enumerate(req.pos_excerpts))  or "(none)"
+    neg_block  = "\n".join(f'[Neg {i+1}] "{t}"'  for i, t in enumerate(req.neg_excerpts))  or "(none)"
+    flag_block = "\n".join(f'[Flag {i+1}] "{t}"' for i, t in enumerate(req.flag_excerpts)) or "(none)"
+
+    if sample_higher:
+        focus_instruction = (
+            "The sample positive score is HIGHER than the lifetime positive score. "
+            "Focus your reasoning primarily on the POSITIVE review excerpts to explain why recent players "
+            "are rating the game better than its all-time average. Consider improvements, updates, community growth, or quality-of-life changes."
+        )
+    else:
+        focus_instruction = (
+            "The sample positive score is LOWER than the lifetime positive score. "
+            "Focus your reasoning primarily on the FLAGGED review excerpts to explain what community concerns, "
+            "recurring complaints, or issues are currently dragging the recent score below the all-time average. Keep the analysis SFW and factual."
+        )
+
+    system_msg = (
+        "You are a professional game analytics assistant. "
+        "You write clear, neutral, SFW analytical reports for game developers and publishers. "
+        "You always respond in plain prose paragraphs with NO markdown, NO bullet points, NO headers, NO asterisks. "
+        "Your response must contain exactly two clearly labelled sections using only these plain-text labels:\n"
+        "SECTION 1 — SCORE GAP ANALYSIS:\n"
+        "SECTION 2 — POSITIVE OUTLOOK & IMPROVEMENT RECOMMENDATIONS:\n"
+        "Each section should be 2–4 paragraphs. Do not add any other labels, numbers, or formatting."
+    )
+
+    user_msg = (
+        f'Write a two-section analysis report for the Steam game "{req.game_name}".\n\n'
+        f"KEY METRICS:\n"
+        f"- Steam lifetime score: {req.lt_pos:.1f}% positive, {req.lt_neg:.1f}% negative ({req.lt_total:,} total reviews)\n"
+        f"- Recent 30-day sample: {req.sm_pos:.1f}% positive, {req.sm_neg:.1f}% negative ({req.sm_total:,} reviews, max 800)\n"
+        f"- Score gap (sample minus lifetime): {delta_str}\n"
+        f"- Flagged reviews in sample: {req.sm_flagged}\n\n"
+        f"FOCUS INSTRUCTION: {focus_instruction}\n\n"
+        f"REVIEW EXCERPTS:\n"
+        f"Positive:\n{pos_block}\n\n"
+        f"Negative:\n{neg_block}\n\n"
+        f"Flagged:\n{flag_block}\n\n"
+        "SECTION 1 — SCORE GAP ANALYSIS: Provide a comprehensive explanation of why the recent sample score differs "
+        "from the lifetime score, citing specific evidence from the relevant review excerpts above.\n\n"
+        "SECTION 2 — POSITIVE OUTLOOK & IMPROVEMENT RECOMMENDATIONS: Regardless of whether the score gap is positive "
+        "or negative, provide actionable, encouraging recommendations the developers can use to improve or maintain "
+        "the game's rating. Focus on community engagement, content updates, and player retention strategies."
+    )
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "HTTP-Referer": os.getenv("SITE_URL", "https://easysteamreview.app"),
+        "X-Title": "EasySteamReview Analytics",
+        "Content-Type": "application/json",
+    }
+    payload = {
+    # Change this line:
+    "model": "nvidia/nemotron-3-super-120b-a12b:free", 
+    "messages": [
+        {"role": "system", "content": system_msg},
+        {"role": "user",   "content": user_msg},
+    ],
+    "max_tokens": 900,
+    "temperature": 0.55,
+}
+
+    async with _httpx.AsyncClient(timeout=90.0) as client:
+        try:
+            resp = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers=headers,
+                json=payload,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            text = body["choices"][0]["message"]["content"].strip()
+            return {"report": text, "delta": delta, "sample_higher": sample_higher}
+        except _httpx.HTTPStatusError as e:
+            raise HTTPException(e.response.status_code, f"OpenRouter error: {e.response.text}")
+        except Exception as e:
+            raise HTTPException(500, str(e))
 
 # ── Analytics API ──────────────────────────────────────────────────────────────
 

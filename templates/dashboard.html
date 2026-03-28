@@ -166,6 +166,29 @@ nav{position:sticky;top:0;z-index:200;background:rgba(8,12,20,.9);
 .chart-sub{font-size:.7rem;color:var(--muted);margin-bottom:10px;}
 .chart-wrap{width:100%;min-height:250px;}
 
+/* SCORE COMPARISON PANEL */
+.score-compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+.ai-analysis-box{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:1rem;display:flex;flex-direction:column;gap:8px;}
+.ai-analysis-box .chart-title{font-family:'Rajdhani',sans-serif;font-size:1.05rem;font-weight:700;margin-bottom:3px;}
+.ai-analysis-box .chart-sub{font-size:.7rem;color:var(--muted);margin-bottom:6px;}
+#ai-report-text{font-size:.8rem;line-height:1.7;color:var(--muted2);flex:1;overflow-y:auto;max-height:340px;min-height:200px;}
+#ai-report-text p{margin-bottom:.55rem;}
+#ai-report-text strong{color:var(--text);}
+.ai-section{margin-bottom:1rem;}
+.ai-section-label{font-family:'Rajdhani',sans-serif;font-size:.82rem;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;padding:4px 10px;border-radius:5px;margin-bottom:7px;display:inline-block;}
+.ai-section-label.gap{background:rgba(0,200,240,.12);color:var(--accent);border:1px solid rgba(0,200,240,.25);}
+.ai-section-label.outlook{background:rgba(16,185,129,.12);color:var(--green);border:1px solid rgba(16,185,129,.25);}
+.ai-section-body{font-size:.8rem;line-height:1.72;color:var(--muted2);}
+.ai-section-body p{margin-bottom:.5rem;}
+.ai-loading-state{display:flex;align-items:center;gap:8px;padding:.5rem 0;}
+.ai-gen-btn{margin-top:auto;align-self:flex-start;}
+.ai-status{font-size:.7rem;color:var(--muted);display:flex;align-items:center;gap:6px;}
+.ai-status .mini-spin{width:12px;height:12px;border-width:2px;}
+.score-bar-legend{display:flex;gap:12px;font-size:.7rem;color:var(--muted2);margin-bottom:8px;flex-wrap:wrap;}
+.score-bar-legend span{display:flex;align-items:center;gap:5px;}
+.score-bar-legend .dot{width:10px;height:10px;border-radius:2px;flex-shrink:0;}
+
 /* KW BARS */
 .kw-bar-row{display:flex;align-items:center;gap:9px;padding:6px 0;
   border-bottom:1px solid var(--border);}
@@ -784,13 +807,38 @@ function buildCharts(data) {
   document.getElementById('analyticsContent').innerHTML =
     analyticsNote +
     `
-    <div class="chart-grid">
+    <div class="score-compare-grid">
 
-      <div class="chart-box full">
-        <div class="chart-title">📉 Last 30 days (UTC) — daily mood & thumbs</div>
-        <div class="chart-sub">Full 30-day calendar axis; NLP compound + positive/negative counts per day (reviews older than 30 days excluded)</div>
-        <div class="chart-wrap" id="ch-trend"></div>
+      <div class="chart-box" style="min-height:0;">
+        <div class="chart-title">📊 Score Comparison — Lifetime vs Sample</div>
+        <div class="chart-sub">Full Steam lifetime totals vs your 30-day/800-review sample — positive &amp; negative side by side</div>
+        <div class="score-bar-legend">
+          <span><span class="dot" style="background:rgba(16,185,129,0.85);"></span>Positive</span>
+          <span><span class="dot" style="background:rgba(239,68,68,0.85);"></span>Negative</span>
+          <span><span class="dot" style="background:rgba(16,185,129,0.35);border:1px dashed rgba(16,185,129,.7);"></span>Lifetime</span>
+          <span><span class="dot" style="background:rgba(239,68,68,0.35);border:1px dashed rgba(239,68,68,.7);"></span>Lifetime neg</span>
+        </div>
+        <div class="chart-wrap" style="min-height:220px;" id="ch-score-compare"></div>
       </div>
+
+      <div class="ai-analysis-box">
+        <div class="chart-title">🤖 AI Data Analysis — Score Gap Report</div>
+        <div class="chart-sub">Nemotron AI explains the score gap using real review excerpts — auto-generated on load</div>
+        <div id="ai-report-text">
+          <div class="ai-loading-state">
+            <div class="mini-spin" style="width:18px;height:18px;border-width:2px;"></div>
+            <span style="color:var(--muted);font-size:.8rem;">Preparing analysis…</span>
+          </div>
+        </div>
+        <div class="ai-status" id="ai-status-row" style="display:none;">
+          <div class="mini-spin"></div><span id="ai-status-msg">Contacting AI…</span>
+        </div>
+        <button class="btn btn-outline" style="font-size:.72rem;margin-top:auto;align-self:flex-start;" onclick="generateAIReport(true)" id="aiGenBtn">↻ Regenerate</button>
+      </div>
+
+    </div>
+
+    <div class="chart-grid">
 
       <div class="chart-box">
         <div class="chart-title">⏱ Last 30 days — playtime buckets</div>
@@ -806,61 +854,68 @@ function buildCharts(data) {
 
     </div>`;
 
-  // ── Chart 1: Sentiment Trend ───────────────────────────────────────────────
-  const trend = data.sentiment_trend || [];
-  if (trend.length > 0) {
-    const dates = trend.map(d => d.date).filter(Boolean);
-    if (!dates.length) {
-      document.getElementById('ch-trend').innerHTML =
-        '<div class="center-msg"><span style="color:var(--muted);">Not enough date data</span></div>';
-    } else {
-    try {
-    Plotly.newPlot('ch-trend', [
-      {
-        x: dates, y: trend.map(d => d.avg_sentiment),
-        name: 'Avg Sentiment', type: 'scatter', mode: 'lines+markers',
-        line: { color: '#00c8f0', width: 2.5, shape: 'linear' },
-        marker: { size: 5, color: '#00c8f0' },
-        connectgaps: true,
-        yaxis: 'y'
-      },
-      {
-        x: dates, y: trend.map(d => d.positive),
-        name: 'Positive', type: 'bar',
-        marker: { color: 'rgba(16,185,129,0.55)' }, yaxis: 'y2'
-      },
-      {
-        x: dates, y: trend.map(d => d.negative),
-        name: 'Negative', type: 'bar',
-        marker: { color: 'rgba(239,68,68,0.55)' }, yaxis: 'y2'
-      }
-    ], {
-      ...baseLayout,
-      barmode: 'stack',
-      yaxis:  { ...baseLayout.yaxis, title: 'NLP sentiment', range: [-1.1, 1.1], tickformat: '.2f' },
-      yaxis2: { overlaying: 'y', side: 'right', title: 'Review Count',
-                gridcolor: 'transparent', tickfont: font },
-      xaxis:  {
-        ...baseLayout.xaxis,
-        type: 'category',
-        categoryorder: 'array',
-        categoryarray: dates,
-        title: 'Date (UTC · last 30 days)',
-        tickangle: -35,
-        showgrid: true
-      },
-      height: 300
-    }, cfg);
-    } catch (e) {
-      console.error('ch-trend', e);
-      document.getElementById('ch-trend').innerHTML =
-        '<div class="center-msg"><span style="color:var(--muted);">Chart could not render. Try Refresh or another browser.</span></div>';
-    }
-    }
-  } else {
-    document.getElementById('ch-trend').innerHTML =
-      '<div class="center-msg"><span style="color:var(--muted);">Not enough date data</span></div>';
-  }
+  // ── Score Comparison Chart ─────────────────────────────────────────────────
+  const lt = data.lifetime || {};
+  const sm = data.summary  || {};
+  const ltPos = Number(lt.overall_positive_pct ?? lt.rating_pct ?? 0);
+  const ltNeg = Number(lt.overall_negative_pct ?? (100 - ltPos));
+  const smPos = Number(sm.positive_pct ?? 0);
+  const smNeg = Number(sm.negative_pct ?? 0);
+
+  Plotly.newPlot('ch-score-compare', [
+    {
+      name: 'Sample Positive',
+      x: ['Sample (30d)'],
+      y: [smPos],
+      type: 'bar',
+      marker: { color: 'rgba(16,185,129,0.85)' },
+      text: [smPos.toFixed(1) + '%'],
+      textposition: 'auto',
+      textfont: { size: 12, color: '#fff' },
+    },
+    {
+      name: 'Sample Negative',
+      x: ['Sample (30d)'],
+      y: [smNeg],
+      type: 'bar',
+      marker: { color: 'rgba(239,68,68,0.85)' },
+      text: [smNeg.toFixed(1) + '%'],
+      textposition: 'auto',
+      textfont: { size: 12, color: '#fff' },
+    },
+    {
+      name: 'Lifetime Positive',
+      x: ['Lifetime (Steam)'],
+      y: [ltPos],
+      type: 'bar',
+      marker: { color: 'rgba(16,185,129,0.45)', line: { color: 'rgba(16,185,129,.9)', width: 2, dash: 'dot' } },
+      text: [ltPos.toFixed(1) + '%'],
+      textposition: 'auto',
+      textfont: { size: 12, color: dark ? '#dde6f0' : '#1a2d45' },
+    },
+    {
+      name: 'Lifetime Negative',
+      x: ['Lifetime (Steam)'],
+      y: [ltNeg],
+      type: 'bar',
+      marker: { color: 'rgba(239,68,68,0.45)', line: { color: 'rgba(239,68,68,.9)', width: 2, dash: 'dot' } },
+      text: [ltNeg.toFixed(1) + '%'],
+      textposition: 'auto',
+      textfont: { size: 12, color: dark ? '#dde6f0' : '#1a2d45' },
+    },
+  ], {
+    ...baseLayout,
+    barmode: 'stack',
+    height: 260,
+    margin: { t: 16, b: 36, l: 44, r: 16 },
+    yaxis: { ...baseLayout.yaxis, title: '% of Reviews', range: [0, 105], ticksuffix: '%' },
+    xaxis: { ...baseLayout.xaxis, tickfont: { ...font, size: 12 } },
+    showlegend: false,
+  }, cfg);
+
+  // store for AI report and auto-trigger
+  window._scoreData = { lt, sm, data };
+  generateAIReport(false); // auto-run on chart build, not manual
 
   // ── Chart 2: Hours Distribution ────────────────────────────────────────────
   const hd = data.hours_distribution || { labels: [], positive: [], negative: [] };
@@ -1036,6 +1091,139 @@ function toast(msg, isErr = false) {
   el.textContent = msg;
   el.className = 'show' + (isErr ? ' err' : '');
   setTimeout(() => el.className = '', 4500);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AI REPORT — OpenRouter / Nemotron (via /api/ai-report backend)
+// ═══════════════════════════════════════════════════════════════════════════
+async function generateAIReport(isManual = false) {
+  const btn       = document.getElementById('aiGenBtn');
+  const reportEl  = document.getElementById('ai-report-text');
+  const statusRow = document.getElementById('ai-status-row');
+  const statusMsg = document.getElementById('ai-status-msg');
+
+  const sd = window._scoreData;
+  if (!sd) {
+    if (isManual) reportEl.innerHTML =
+      '<span style="color:var(--red);">Analytics not loaded yet — wait for the ETL to complete.</span>';
+    return;
+  }
+
+  if (btn) btn.disabled = true;
+  statusRow.style.display = 'flex';
+  statusMsg.textContent = 'Fetching review excerpts…';
+  reportEl.innerHTML =
+    '<div class="ai-loading-state"><div class="mini-spin" style="width:18px;height:18px;border-width:2px;"></div>' +
+    '<span style="color:var(--muted);font-size:.8rem;">Fetching review excerpts…</span></div>';
+
+  const lt       = sd.lt   || {};
+  const sm       = sd.sm   || {};
+  const allData  = sd.data || {};
+  const gameName = (allData.game && allData.game.name) ? allData.game.name : 'this game';
+
+  // Gather excerpts from the API
+  let posExcerpts = [], negExcerpts = [], flagExcerpts = [];
+  try {
+    const [posRes, negRes, flagRes] = await Promise.all([
+      fetch(`/api/reviews/${encodeURIComponent(APP_ID)}?filter=positive&sort=helpful&page=1`),
+      fetch(`/api/reviews/${encodeURIComponent(APP_ID)}?filter=negative&sort=helpful&page=1`),
+      fetch(`/api/reviews/${encodeURIComponent(APP_ID)}?filter=flagged&sort=helpful&page=1`),
+    ]);
+    const excerpt = r => (r.review_text || '').slice(0, 200).replace(/\n/g, ' ').trim();
+    posExcerpts  = ((await posRes.json()).reviews  || []).slice(0, 4).map(excerpt).filter(Boolean);
+    negExcerpts  = ((await negRes.json()).reviews  || []).slice(0, 4).map(excerpt).filter(Boolean);
+    flagExcerpts = ((await flagRes.json()).reviews || []).slice(0, 3).map(excerpt).filter(Boolean);
+  } catch(e) { /* proceed with empty excerpts */ }
+
+  statusMsg.textContent = 'Nemotron AI is writing the report…';
+  reportEl.innerHTML =
+    '<div class="ai-loading-state"><div class="mini-spin" style="width:18px;height:18px;border-width:2px;"></div>' +
+    '<span style="color:var(--muted);font-size:.8rem;">Nemotron AI is analysing — this takes 10–30 seconds…</span></div>';
+
+  try {
+    const res = await fetch(`/api/ai-report/${encodeURIComponent(APP_ID)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        game_name:     gameName,
+        lt_pos:        Number(lt.overall_positive_pct ?? lt.rating_pct ?? 0),
+        lt_neg:        Number(lt.overall_negative_pct ?? 0),
+        lt_total:      Number(lt.total_reviews ?? 0),
+        sm_pos:        Number(sm.positive_pct ?? 0),
+        sm_neg:        Number(sm.negative_pct ?? 0),
+        sm_total:      Number(sm.total ?? 0),
+        sm_flagged:    Number(sm.flagged ?? 0),
+        pos_excerpts:  posExcerpts,
+        neg_excerpts:  negExcerpts,
+        flag_excerpts: flagExcerpts,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+
+    const result = await res.json();
+    const rawText = result.report || '';
+
+    // ── Parse the two labelled sections ───────────────────────────────────
+    // The backend instructs the model to use these exact plain-text labels.
+    const SEC1_RE = /SECTION\s*1\s*[—\-–:]+\s*SCORE GAP ANALYSIS\s*[:\-–]*/i;
+    const SEC2_RE = /SECTION\s*2\s*[—\-–:]+\s*POSITIVE OUTLOOK[^:\n]*[:\-–]*/i;
+
+    let sec1Text = '', sec2Text = '';
+
+    const s1Match = SEC1_RE.exec(rawText);
+    const s2Match = SEC2_RE.exec(rawText);
+
+    if (s1Match && s2Match) {
+      sec1Text = rawText.slice(s1Match.index + s1Match[0].length, s2Match.index).trim();
+      sec2Text = rawText.slice(s2Match.index + s2Match[0].length).trim();
+    } else if (s1Match) {
+      sec1Text = rawText.slice(s1Match.index + s1Match[0].length).trim();
+    } else {
+      // Fallback: try to split on any double-newline halfway through
+      const half = Math.floor(rawText.length / 2);
+      const splitAt = rawText.indexOf('\n\n', half);
+      if (splitAt > 0) {
+        sec1Text = rawText.slice(0, splitAt).trim();
+        sec2Text = rawText.slice(splitAt).trim();
+      } else {
+        sec1Text = rawText.trim();
+      }
+    }
+
+    const toParas = t =>
+      t.split(/\n{1,}/).map(p => p.trim()).filter(Boolean)
+       .map(p => `<p>${esc(p)}</p>`).join('');
+
+    const delta        = result.delta ?? 0;
+    const sampleHigher = result.sample_higher ?? (delta > 0);
+    const gapIcon      = sampleHigher ? '📈' : '📉';
+    const gapColour    = sampleHigher ? 'var(--green)' : 'var(--red)';
+    const deltaStr     = (delta > 0 ? '+' : '') + delta.toFixed(1) + '%';
+
+    reportEl.innerHTML = `
+      <div class="ai-section">
+        <div class="ai-section-label gap">${gapIcon} Score Gap Analysis
+          <span style="font-size:.7rem;font-weight:400;color:${gapColour};margin-left:6px;">${deltaStr}</span>
+        </div>
+        <div class="ai-section-body">${toParas(sec1Text) || '<p style="color:var(--muted);">No analysis returned.</p>'}</div>
+      </div>
+      <div class="ai-section">
+        <div class="ai-section-label outlook">✅ Positive Outlook &amp; Recommendations</div>
+        <div class="ai-section-body">${toParas(sec2Text) || '<p style="color:var(--muted);">No recommendations returned.</p>'}</div>
+      </div>`;
+
+  } catch(err) {
+    reportEl.innerHTML =
+      `<span style="color:var(--red);font-size:.8rem;">⚠ AI report failed: ${esc(String(err.message || err))}` +
+      ` — check that OPENROUTER_API_KEY is set and the server is running.</span>`;
+  }
+
+  if (btn) btn.disabled = false;
+  statusRow.style.display = 'none';
 }
 
 // ── Start ─────────────────────────────────────────────────────────────────────
