@@ -1,8 +1,7 @@
 # EasySteamReview
 A Data Analyst Tool to see review of games through the Steam Store within the scope of 30 days and up to 800 of the most recent reviews., picking up on keywords involve cheating, hacking, scamming and other to see the game ranking for this Month.
 
-<img width="1513" height="822" alt="Screenshot 2026-03-28 034206" src="https://github.com/user-attachments/assets/c487421e-7777-4c3f-a3de-dc031240da3a" />
-
+<img width="847" height="510" alt="Screenshot 2026-03-28 034754" src="https://github.com/user-attachments/assets/ad61bbda-ebc6-47f0-9999-f747b44eb257" />
 
 ### Project Scope: Player Review Analysis Dashboard for Cheating and Moderation Insights
 
